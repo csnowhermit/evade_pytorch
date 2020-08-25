@@ -43,7 +43,7 @@ def getDefaultDirection(gate_num):
 
 '''
     逃票判定
-    :param tracks 人的track
+    :param tracks 人的tracks，所有被追踪的人
     :param other_classes 其他的类别
     :param other_boxs 其他类别框，上左下右
     :param other_scores 其他类别的得分值
@@ -51,7 +51,7 @@ def getDefaultDirection(gate_num):
     :return flag, TrackContentList 通行状态，新的追踪人的内容
 '''
 def evade_vote(tracks, other_classes, other_boxs, other_scores, height):
-    TrackContentList = []    # 追踪人的内容，新增闸机编号和通过状态
+    TrackContentList = []    # 追踪人的内容，新增闸机编号和通过状态，过滤掉不在有效闸机通道的人员
     flag = "NORMAL"    # 默认该帧图片的通行状态为NORMAL，遇到有逃票时改为WARNING
     up_distance_threshold = height * up_distance_rate
     down_distance_threshold = height * down_distance_rate
@@ -110,7 +110,8 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height):
 
     ## 2.再处理人
     # 2.1、判断各自在哪个通道内
-    which_gateList = isin_which_gate(bboxes)    # which_gateList，有人的闸机序列
+    which_gateList = isin_which_gate(bboxes)    # which_gateList，有人的闸机序列，每个人的框和各自的闸机序列一一对应
+    # effective_boxes，有效的人物框，这时已过滤掉了不在有效范围内的框
     print("有人的闸机序列 which_gateList:", which_gateList)    # which_gateList: [2]，
     log.logger.info("有人的闸机序列 which_gateList: %s" % (which_gateList))
     # which_gateList = [1, 2, 1, 2]    # 写死，测试用
@@ -131,6 +132,8 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height):
 
     multi_personList = []    # 同时出现多人的闸机序列
     for res in gateCounter.keys():
+        if res == -1:
+            continue    # 通道编号为-1，说明不在有效通道范围内，这些人不做逃票判定
         if gateCounter[res] > 1:
             multi_personList.append(res)    # 拿到几号闸机同时出现多人
 
@@ -232,16 +235,35 @@ def Box2Line(bbox):
     判断人在哪个闸机区域，人以中心点为准
     :param bboxes 所有人的人物框列表，左上右下
     :param passway_area_list 通道范围，从左到右，左上右下
-    :return which_gates 通道编号列表
+    :return which_gates 通道编号列表，-1表示不在任何框内，仅占位，不做逃票判定
 '''
 def isin_which_gate(bboxes):
     # print("bboxes:", bboxes)
     # print("passway_area_list:", passway_area_list)
-    iou_result = calc_iou(bbox1=bboxes, bbox2=passway_area_list)
-    which_gates = []
-    for iou in iou_result:
-        which_gates.append(iou.argmax())    # 找每行iou最大的，认为该人在该通道内
+    # iou_result = calc_iou(bbox1=bboxes, bbox2=passway_area_list)
+    # which_gates = []
+    # for iou in iou_result:
+    #     which_gates.append(iou.argmax())    # 找每行iou最大的，认为该人在该通道内
+    # return which_gates
+    which_gates = []    # 每个人的依次闸机列表，闸机顺序与人物框顺序对应
+    for box in bboxes:
+        left, top, right, bottom = box
+        w = right - left
+        h = bottom - top
+        centerx = left + w / 2
+        centery = top + h / 2
+        which_gate_num = -1    # 默认通道为-1，认为不在任何通道内
+
+        for i in range(len(passway_area_list)):
+            passway_area_left, passway_area_top, passway_area_right, passway_area_bottom = passway_area_list[i]
+
+            # 如果在当前范围内，则认为是在该通道下
+            if (centerx >= passway_area_left and centerx <= passway_area_right) and (centery >= passway_area_top and centery <= passway_area_bottom):
+                which_gate_num = i    # 该人在第i通道下
+                break    # 找到之后就不再循环
+        which_gates.append(which_gate_num)
     return which_gates
+
 
 '''
     匹配检测到的闸机位置与真实位置，拿到真实位置各闸机的开关状态
