@@ -15,7 +15,7 @@ rtsp_url = "rtsp://admin:quickhigh123456@192.168.120.155/h264/ch1/sub/av_stream"
 
 # 图像大小
 # image_size = "1920x1080"
-image_size = (640, 480)    # 图片大小
+image_size = (640, 360)    # 图片大小
 
 # 图像有效区域比例，以中心点算
 effective_area_rate = (1, 0.9)    # 宽，高。表示宽维度上所有都有效，高维度上由中心点算起，最中间的80%区域有效（即上下各有10%的留白区）

@@ -172,7 +172,8 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
                 detect_time = time.time() - detect_t1  # 检测动作结束
 
                 # 标注
-                image = Image.fromarray(frame[..., ::-1])  # bgr to rgb
+                image = Image.fromarray(frame)  # 这里不用再转：已经是rgb了
+                # image = Image.fromarray(frame[..., ::-1])  # bgr to rgb
                 draw = ImageDraw.Draw(image)
 
                 for track in trackList:  # 标注人，track.state=0/1，都在tracker.tracks中
@@ -328,7 +329,6 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
     cv2.destroyAllWindows()
 
 
-
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_detection", type=str, default="./configs/yolov3.yaml")
@@ -350,7 +350,7 @@ if __name__ == '__main__':
     cfg.merge_from_file(args.config_detection)
     cfg.merge_from_file(args.config_deepsort)
 
-    # 自定义十四别缓冲区
+    # 自定义识别缓冲区
     frame_buffer = Stack(30 * 5)
     lock = threading.RLock()
 
