@@ -35,7 +35,7 @@ class VideoTracker(object):
         else:
             self.vdo = cv2.VideoCapture()
         self.detector = build_detector(cfg, use_cuda=use_cuda)
-        self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
+        self.deepsort = build_tracker(cfg, use_cuda=use_cuda, n_start=0)
         self.class_names = self.detector.class_names
 
     def __enter__(self):
@@ -97,7 +97,7 @@ class VideoTracker(object):
             cls_conf = cls_conf[mask]
 
             # do tracking
-            outputs = self.deepsort.update(bbox_xywh, cls_conf, im)
+            outputs = self.deepsort.update_old(bbox_xywh, cls_conf, im)
 
             # draw boxes for visualization
             if len(outputs) > 0:
