@@ -26,8 +26,9 @@ class Detection(object):
 
     """
 
-    def __init__(self, tlwh, confidence, feature):
-        self.tlwh = np.asarray(tlwh, dtype=np.float)
+    def __init__(self, cls, tlwh, confidence, feature):
+        self.classes = cls    # 类别
+        self.tlwh = np.asarray(tlwh, dtype=np.float)    # 这里要求：左上宽高
         self.confidence = float(confidence)
         self.feature = np.asarray(feature, dtype=np.float32)
 

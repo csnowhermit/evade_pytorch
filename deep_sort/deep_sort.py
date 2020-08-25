@@ -12,7 +12,7 @@ __all__ = ['DeepSort']
 
 
 class DeepSort(object):
-    def __init__(self, model_path, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
+    def __init__(self, model_path, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=2, nn_budget=100, use_cuda=True, n_start=0):
         self.min_confidence = min_confidence
         self.nms_max_overlap = nms_max_overlap
 
@@ -21,37 +21,69 @@ class DeepSort(object):
         max_cosine_distance = max_dist
         nn_budget = 100
         metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-        self.tracker = Tracker(metric, max_iou_distance=max_iou_distance, max_age=max_age, n_init=n_init)
+        self.tracker = Tracker(metric, max_iou_distance=max_iou_distance, max_age=max_age, n_init=n_init, n_start=n_start)
 
-    def update(self, bbox_xywh, confidences, ori_img):
+    # # 原始版deepsort.update()，已废弃
+    # def update_old(self, bbox_xywh, confidences, ori_img):
+    #     self.height, self.width = ori_img.shape[:2]
+    #     # generate detections
+    #     features = self._get_features(bbox_xywh, ori_img)
+    #     bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
+    #     detections = [Detection(bbox_tlwh[i], conf, features[i]) for i,conf in enumerate(confidences) if conf>self.min_confidence]
+    #
+    #     # run on non-maximum supression
+    #     boxes = np.array([d.tlwh for d in detections])
+    #     scores = np.array([d.confidence for d in detections])
+    #     indices = non_max_suppression(boxes, self.nms_max_overlap, scores)
+    #     detections = [detections[i] for i in indices]
+    #
+    #     # update tracker
+    #     self.tracker.predict()
+    #     self.tracker.update(detections)
+    #
+    #     # output bbox identities
+    #     outputs = []
+    #     for track in self.tracker.tracks:
+    #         if not track.is_confirmed() or track.time_since_update > 1:
+    #             continue
+    #         box = track.to_tlwh()
+    #         x1,y1,x2,y2 = self._tlwh_to_xyxy(box)
+    #         track_id = track.track_id
+    #         outputs.append(np.array([x1,y1,x2,y2,track_id], dtype=np.int))
+    #     if len(outputs) > 0:
+    #         outputs = np.stack(outputs,axis=0)
+    #     return outputs
+
+    '''
+        做追踪器的预测及更新:
+        :param ori_img 原图
+        :param 大人：类别、框（左上宽高）、置信度
+                小孩：类别、框（左上宽高）、置信度
+    '''
+    def update(self, ori_img, adult_classes, adult_boxs, adult_scores, child_classes, child_boxs, child_scores):
         self.height, self.width = ori_img.shape[:2]
-        # generate detections
-        features = self._get_features(bbox_xywh, ori_img)
-        bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
-        detections = [Detection(bbox_tlwh[i], conf, features[i]) for i,conf in enumerate(confidences) if conf>self.min_confidence]
 
-        # run on non-maximum supression
-        boxes = np.array([d.tlwh for d in detections])
-        scores = np.array([d.confidence for d in detections])
-        indices = non_max_suppression(boxes, self.nms_max_overlap, scores)
-        detections = [detections[i] for i in indices]
+        # 每个人做成128维的向量
+        features_adult = self._get_features(adult_boxs, ori_img)
+        features_child = self._get_features(child_boxs, ori_img)
 
-        # update tracker
+        # 大人和小孩的Detection
+        detections_adult = [Detection(cls, bbox, confidence, feature) for cls, bbox, confidence, feature in
+                            zip(adult_classes, adult_boxs, adult_scores, features_adult)]
+        detections_child = [Detection(cls, bbox, confidence, feature) for cls, bbox, confidence, feature in
+                            zip(child_classes, child_boxs, child_scores, features_child)]
+
+        # # 原来有nms，现去掉，原因：yolo.detect_image()本身已经做了nms
+        # boxes = np.array([d.tlwh for d in detections])
+        # scores = np.array([d.confidence for d in detections])
+        # indices = preprocessing.non_max_suppression(boxes, nms_max_overlap, scores)
+        # detections = [detections[i] for i in indices]
+
+        # Call the tracker
+        # 1.卡门滤波预测阶段：通过均值和协方差，预测前一帧中的tracks在当前帧的状态
         self.tracker.predict()
-        self.tracker.update(detections)
-
-        # output bbox identities
-        outputs = []
-        for track in self.tracker.tracks:
-            if not track.is_confirmed() or track.time_since_update > 1:
-                continue
-            box = track.to_tlwh()
-            x1,y1,x2,y2 = self._tlwh_to_xyxy(box)
-            track_id = track.track_id
-            outputs.append(np.array([x1,y1,x2,y2,track_id], dtype=np.int))
-        if len(outputs) > 0:
-            outputs = np.stack(outputs,axis=0)
-        return outputs
+        # 2.卡门滤波更新阶段：对每个匹配成功的track，用其对应的detection进行更新，同时处理未匹配的tracks和detection
+        self.tracker.update(detections_adult + detections_child)  # Detection中有区分大人小孩了，这里直接放一起追踪
 
 
     """

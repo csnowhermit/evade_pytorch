@@ -47,7 +47,7 @@ class YOLOv3(object):
             # boxes = nms(boxes, self.nms_thresh)
 
             boxes = post_process(boxes, self.net.num_classes, self.conf_thresh, self.nms_thresh)[0].cpu()
-            boxes = boxes[boxes[:, -2] > self.score_thresh, :]  # bbox xmin ymin xmax ymax
+            boxes = boxes[boxes[:, -2] > self.score_thresh, :]  # bbox xmin ymin xmax ymax，左上右下
 
         if len(boxes) == 0:
             bbox = torch.FloatTensor([]).reshape([0, 4])
@@ -58,7 +58,7 @@ class YOLOv3(object):
             bbox = boxes[:, :4]
             if self.is_xywh:
                 # bbox x y w h
-                bbox = xyxy_to_xywh(bbox)
+                bbox = xyxy_to_xywh(bbox)    # 转为 centerx, centery, width, height
 
             bbox *= torch.FloatTensor([[width, height, width, height]])
             cls_conf = boxes[:, 5]
