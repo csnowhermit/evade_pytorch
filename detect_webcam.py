@@ -128,6 +128,7 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
                 read_t1 = time.time()  # 读取动作开始
                 lock.acquire()
                 frame = frame_buffer.pop()  # 每次拿最新的
+                sign = hashlib.md5(frame).hexdigest()    # 拿到就算md5值
                 lock.release()
 
                 print("=================== start a image reco %s ===================" % (formatTimestamp(time.time(), ms=True)))
@@ -285,7 +286,6 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
                         lock.acquire()
                         try:
                             # index = imgCacheList.index(frame)    # 找到当前图片的所属下标
-                            sign = hashlib.md5(frame).hexdigest()
                             index = md5List.index(sign)  # 用md5值匹配找图
 
                             start = max(0, index - imgNearSize)
