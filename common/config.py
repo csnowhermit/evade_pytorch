@@ -33,9 +33,9 @@ table_name = "details_%s" % (ip.replace(".", "_"))    # 表名：正常+逃票
 evade_table_name = "evade_details"    # 逃票表（所有摄像头都存一张表）
 
 # 需特殊处理的类别
-person_types = ['head', 'person', 'child']
+person_types = ['adult', 'person', 'child']
 # tracker_type = 'head'    # 需要tracker的类别
-adult_types = ['head', 'person']    # 大人的表现类别
+adult_types = ['adult', 'person']    # 大人的表现类别
 child_types = ['child']    # 小孩的表现类别
 goods_types = ['backpack', 'cell phone', 'umbrella', 'handbag', 'pushcart', 'trunk']    # 其他的表现类别
 
