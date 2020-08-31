@@ -168,7 +168,10 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height):
             center = [[abs(left) + (abs(right)- abs(left)) / 2,
                        abs(top) + (abs(bottom) -abs(top)) / 2] for (left, top, right, bottom) in suspicion_evade_boxes]
 
-            evade_index_list = []  # 涉嫌逃票的序号：在原始bboxes中的序号
+            evade_index_list = []       # 涉嫌逃票的序号：在原始bboxes中的序号
+            delivery_index_list = []    # 隔闸机递东西的序号：在原始bboxes中的序号
+            block_index_list = []       # 阻碍通行：闸机门关，多人在闸机同一侧
+
             for i in range(len(center)):    # 每个通道，两两人之间计算距离
                 for j in range(i + 1, len(center)):
                     person1x, person1y = center[i][0], center[i][1]
@@ -186,26 +189,66 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height):
 
                         # 第i个人，第j个人
                         if suspicion_evade_classes[i] in adult_types and suspicion_evade_classes[j] in adult_types:    # 只有当两个人都是大人时
-                            suspicion1 = suspicion_evade_boxes[center.index(center[i])]  # 嫌疑人1
-                            suspicion2 = suspicion_evade_boxes[center.index(center[j])]  # 嫌疑人2
-                            print("通道 %s: %s %s %s %s 涉嫌逃票, distance: %f" % (
-                                passway, suspicion_evade_classes[i], suspicion1, suspicion_evade_classes[j], suspicion2, distance))  # [0, 0, 1, 2] [1, 1, 2, 2] 涉嫌逃票
-                            log.logger.warn("通道 %s: %s %s %s %s 涉嫌逃票, distance: %f" % (
-                                passway, suspicion_evade_classes[i], suspicion1, suspicion_evade_classes[j], suspicion2, distance))
 
-                            index1 = bboxes.index(suspicion1)
-                            index2 = bboxes.index(suspicion2)
-                            print("这两人真实全局序号：", index1, index2)  # 这两人真实序号： 0 2
-                            log.logger.warn("这两人真实全局序号: %d %d" % (index1, index2))
-                            evade_index_list.append(index1)
-                            evade_index_list.append(index2)
+                            # 这时还需加入闸机门的判断：如果闸机门关，且两人在闸机门两侧，说明在递东西，pass_status置为2，不属于逃票
+                            tag = isDelivery(person1y, person2y, gate_status_list[passway], gate_area_list[passway])
+                            if tag == "Delivery":
+                                # 隔闸机递东西
+                                suspicion1 = suspicion_evade_boxes[center.index(center[i])]  # 递东西1
+                                suspicion2 = suspicion_evade_boxes[center.index(center[j])]  # 递东西2
+                                print("通道 %s: %s %s %s %s 递东西, distance: %f" % (
+                                    passway, suspicion_evade_classes[i], suspicion1, suspicion_evade_classes[j],suspicion2, distance))  # [0, 0, 1, 2] [1, 1, 2, 2] 递东西
+                                log.logger.warn("通道 %s: %s %s %s %s 递东西, distance: %f" % (
+                                    passway, suspicion_evade_classes[i], suspicion1, suspicion_evade_classes[j],suspicion2, distance))
 
-                            flag = "WARNING"  # 检出有人逃票，该标识为WARNING
-                            log.logger.warn("检测到涉嫌逃票: %s" % flag)
+                                index1 = bboxes.index(suspicion1)
+                                index2 = bboxes.index(suspicion2)
+                                print("递东西-这两人真实全局序号：", index1, index2)  # 这两人真实序号： 0 2
+                                log.logger.warn("递东西-这两人真实全局序号: %d %d" % (index1, index2))
+                                delivery_index_list.append(index1)
+                                delivery_index_list.append(index2)
+                            elif tag == "block":
+                                # 阻碍通行
+                                suspicion1 = suspicion_evade_boxes[center.index(center[i])]  # 阻碍通行1
+                                suspicion2 = suspicion_evade_boxes[center.index(center[j])]  # 阻碍通行2
+                                print("通道 %s: %s %s %s %s 涉嫌阻碍通行, distance: %f" % (
+                                    passway, suspicion_evade_classes[i], suspicion1, suspicion_evade_classes[j], suspicion2, distance))  # [0, 0, 1, 2] [1, 1, 2, 2] 涉嫌阻碍通行
+                                log.logger.warn("通道 %s: %s %s %s %s 涉嫌阻碍通行, distance: %f" % (
+                                    passway, suspicion_evade_classes[i], suspicion1, suspicion_evade_classes[j], suspicion2, distance))
+
+                                index1 = bboxes.index(suspicion1)
+                                index2 = bboxes.index(suspicion2)
+                                print("涉嫌阻碍通行-这两人真实全局序号：", index1, index2)  # 这两人真实序号： 0 2
+                                log.logger.warn("涉嫌阻碍通行-这两人真实全局序号: %d %d" % (index1, index2))
+                                block_index_list.append(index1)
+                                block_index_list.append(index2)
+                            else:    # 这里是涉嫌逃票
+                                suspicion1 = suspicion_evade_boxes[center.index(center[i])]  # 嫌疑人1
+                                suspicion2 = suspicion_evade_boxes[center.index(center[j])]  # 嫌疑人2
+                                print("通道 %s: %s %s %s %s 涉嫌逃票, distance: %f" % (
+                                    passway, suspicion_evade_classes[i], suspicion1, suspicion_evade_classes[j],
+                                    suspicion2, distance))  # [0, 0, 1, 2] [1, 1, 2, 2] 涉嫌逃票
+                                log.logger.warn("通道 %s: %s %s %s %s 涉嫌逃票, distance: %f" % (
+                                    passway, suspicion_evade_classes[i], suspicion1, suspicion_evade_classes[j],
+                                    suspicion2, distance))
+
+                                index1 = bboxes.index(suspicion1)
+                                index2 = bboxes.index(suspicion2)
+                                print("涉嫌逃票-这两人真实全局序号：", index1, index2)  # 这两人真实序号： 0 2
+                                log.logger.warn("涉嫌逃票-这两人真实全局序号: %d %d" % (index1, index2))
+                                evade_index_list.append(index1)
+                                evade_index_list.append(index2)
+
+                                flag = "WARNING"  # 检出有人逃票，该标识为WARNING
+                                log.logger.warn("检测到涉嫌逃票: %s" % flag)
 
             # 更新每个人的通行状态
             for i in range(len(evade_index_list)):    # evade_index_list[i]为人在bboxes中的真实序号
                 pass_status_list[evade_index_list[i]] = 1    # 更新通过状态为 1涉嫌逃票
+            for i in range(len(delivery_index_list)):
+                pass_status_list[delivery_index_list[i]] = 2    # 更新通过状态为 2 递东西
+            for i in range(len(block_index_list)):
+                pass_status_list[block_index_list[i]] = 3    # 更新通行状态为 3 阻碍通行
             print("更新后的通行状态: %s" % (pass_status_list))
             log.logger.info("更新后的通行状态: %s" % (pass_status_list))
 
@@ -341,3 +384,28 @@ def calc_iou(bbox1, bbox2):
 
     union = area1 + np.squeeze(area2, axis=-1) - intersect
     return intersect / union
+
+'''
+    判断是否属于隔闸机递东西
+    :param person1y 第一个人
+    :param person2y 第二个人
+    :param gate_status 闸机状态
+    :param gate_area 闸机门区域
+    :return tag，Delivery：递东西；evade：逃票；block：阻碍通行
+'''
+def isDelivery(person1y, person2y, gate_status, gate_area):
+    tag = ""    # 状态
+    left, top, right, bottom = gate_area    # 闸机框区域：左上右下
+    center_y = int((bottom + top ) / 2)
+    if (person1y <= center_y and person2y >= center_y) or (person1y >= center_y and person2y <= center_y):    # 如果两个人在闸机两侧
+        if gate_status == "closed":    # 并且闸机门关闭
+            tag = "Delivery"    # 递东西
+        else:    # 闸机门开，说明涉嫌逃票，不是递东西
+            tag = "evade"    # 逃票
+    else:    # 两个人在闸机同一侧
+        if gate_status == "closed":    # 且闸机门关闭
+            tag = "block"    # 阻碍通行
+        else:
+            tag = "evade"
+    return tag
+

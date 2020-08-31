@@ -34,7 +34,7 @@ evade_table_name = "evade_details"    # 逃票表（所有摄像头都存一张�
 
 # 需特殊处理的类别
 person_types = ['adult', 'person', 'child']
-# tracker_type = 'head'    # 需要tracker的类别
+# tracker_type = 'adult'    # 需要tracker的类别
 adult_types = ['adult', 'person']    # 大人的表现类别
 child_types = ['child']    # 小孩的表现类别
 goods_types = ['backpack', 'cell phone', 'umbrella', 'handbag', 'pushcart', 'trunk']    # 其他的表现类别
@@ -77,3 +77,6 @@ track_iou = 0.45
 
 # 小孩识别成大人，做nms的iou阀值
 person_nms_iou = 0.6
+
+# 除逃票外的通行状态类型
+pass_status_type_list = ['Delivery', 'block']
