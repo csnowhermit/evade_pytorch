@@ -46,11 +46,6 @@ class YOLOv5(object):
                                    fast=True, classes=self.opt_classes, agnostic=self.agnostic_nms)
 
         for i, det in enumerate(pred):    # 逐个处理每个检测结果
-            if len(det) == 0:
-                bbox = torch.FloatTensor([]).reshape([0, 4])
-                cls_conf = torch.FloatTensor([])
-                cls_ids = torch.LongTensor([])
-
             if det is not None and len(det):
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], ori_img.shape).round()    # 映射到原图上
 
@@ -66,6 +61,10 @@ class YOLOv5(object):
                     bbox = xyxy2xywh(bbox)
                 cls_conf = det[:, 4]    # 拿第5列
                 cls_ids = det[:, 5].int()     # 拿第6列
+            else:    # 未检测到的，用空容器返回
+                bbox = torch.FloatTensor([]).reshape([0, 4])
+                cls_conf = torch.FloatTensor([])
+                cls_ids = torch.LongTensor([])
 
         return bbox.detach().numpy(), cls_conf.detach().numpy(), cls_ids.detach().numpy()
 
