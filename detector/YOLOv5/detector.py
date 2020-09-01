@@ -45,9 +45,6 @@ class YOLOv5(object):
         pred = non_max_suppression(pred, self.conf_thres, self.iou_thres,
                                    fast=True, classes=self.opt_classes, agnostic=self.agnostic_nms)
 
-        bbox = []        # 框的列表：左上右下
-        cls_conf = []    # 置信度列表
-        cls_ids = []     # 类别id列表
         for i, det in enumerate(pred):    # 逐个处理每个检测结果
             if len(det) == 0:
                 bbox = torch.FloatTensor([]).reshape([0, 4])
@@ -55,16 +52,22 @@ class YOLOv5(object):
                 cls_ids = torch.LongTensor([])
 
             if det is not None and len(det):
-                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], ori_img.shape).round()
+                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], ori_img.shape).round()    # 映射到原图上
 
-                for *xyxy, conf, cls in det:
-                    if self.is_xywh:
-                        # bbox x y w h
-                        box = xyxy2xywh(xyxy)  # 转为 centerx, centery, width, height
-                    bbox.append(xyxy)
-                    cls_conf.append(conf)
-                    cls_ids.append(int(cls))
-        return np.array(bbox), np.array(cls_conf), np.array(cls_ids)
+                # for *xyxy, conf, cls in det:
+                #     if self.is_xywh:
+                #         # bbox x y w h
+                #         box = xyxy2xywh(xyxy)  # 转为 centerx, centery, width, height
+                #     bbox.append(xyxy)
+                #     cls_conf.append(conf)
+                #     cls_ids.append(int(cls))
+                bbox = det[:, :4]       # 拿前4列
+                if self.is_xywh:    # 默认不用转为 centerx, centery, width, height
+                    bbox = xyxy2xywh(bbox)
+                cls_conf = det[:, 4]    # 拿第5列
+                cls_ids = det[:, 5].int()     # 拿第6列
+
+        return bbox.detach().numpy(), cls_conf.detach().numpy(), cls_ids.detach().numpy()
 
     def load_class_names(self, namesfile):
         with open(namesfile, 'r', encoding='utf8') as fp:
