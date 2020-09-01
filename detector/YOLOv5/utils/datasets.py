@@ -14,7 +14,7 @@ from PIL import Image, ExifTags
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from utils.utils import xyxy2xywh, xywh2xyxy
+from .utils import xyxy2xywh, xywh2xyxy
 
 help_url = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
 img_formats = ['.bmp', '.jpg', '.jpeg', '.png', '.tif', '.dng']
@@ -556,7 +556,11 @@ def augment_hsv(img, hgain=0.5, sgain=0.5, vgain=0.5):
     #     for i in range(3):
     #         img[:, :, i] = cv2.equalizeHist(img[:, :, i])
 
-
+'''
+    采用mosaic数据增强方式：
+    （1）随机4张图片，随机缩放，随机分布，组装成一张图；
+    （2）同时4张图做数据增强，省gpu；
+'''
 def load_mosaic(self, index):
     # loads images in a mosaic
 

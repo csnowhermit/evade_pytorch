@@ -27,6 +27,7 @@ def cleaning_box(bbox_xyxy, cls_conf, cls_ids, class_names):
 
         if predicted_class in person_types:  # 如果是人，只有在有效区域内才算
             # 这里做有效区域范围的过滤，解决快出框了person_id变了的bug
+            # if True:
             if is_effective(xyxy) is True:  # 只有在有效范围内，才算数
                 if score >= person_types_threahold:  # 只有大于置信度的，才能视为人头
                     special_classes.append(predicted_class)

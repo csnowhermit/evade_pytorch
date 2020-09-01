@@ -3,6 +3,7 @@ import numpy as np
 import torch
 
 from .utils.utils import *
+from .utils.datasets import *
 
 
 class YOLOv5(object):
@@ -34,7 +35,11 @@ class YOLOv5(object):
         assert isinstance(ori_img, np.ndarray), "input must be a numpy array!"
         img = ori_img.astype(np.float) / 255.
 
-        img = cv2.resize(img, (self.size, self.size))
+        img = cv2.resize(img, (self.size, self.size))    # yolov5之前这么做resize
+        # 实际中，许多图片长宽比不同，直接cv2.resize()的话，两端的黑边大小都不同，而如果填充的较多，存在信息荣誉，影响推理速度
+        # rect = np.unique(img, axis=0).shape[0] == 1
+        # img = letterbox(img, new_shape=self.size, auto=rect)[0]    # yolov5采用这种方式进行resize，对原始图像自适应的添加最少的黑边
+
         img = torch.from_numpy(img).float().permute(2, 0, 1).unsqueeze(0)
         pred = self.model(img)[0]
 
