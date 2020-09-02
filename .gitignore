@@ -2,6 +2,7 @@
 datasets/
 logs/
 *.h5
+*.pt
 *.weights
 results/
 temp/
