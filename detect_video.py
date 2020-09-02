@@ -79,7 +79,7 @@ def main(input_path, output_path):
         detect_t1 = time.time()  # 检测动作开始
 
         # 先做检测
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # BGR转RGB，用于识别
+        # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # BGR转RGB，用于识别。这里转换移到detector()里做
         bbox_xyxy, cls_conf, cls_ids = detector(frame)  # 这里所有的检出，box格式均为：左上右下
 
         # 经过对原始框的预处理，现在：大人和小孩：左上宽高；物品：上左下右
@@ -115,8 +115,8 @@ def main(input_path, output_path):
         detect_time = time.time() - detect_t1  # 检测动作结束
 
         # 标注
-        image = Image.fromarray(frame)  # 这里不用再转：已经是rgb了
-        # image = Image.fromarray(frame[..., ::-1])  # bgr to rgb
+        # image = Image.fromarray(frame)  # 这里不用再转：已经是rgb了
+        image = Image.fromarray(frame[..., ::-1])  # bgr to rgb，转成RGB格式进行做标注
         draw = ImageDraw.Draw(image)
 
         for track in trackList:  # 标注人，track.state=0/1，都在tracker.tracks中
@@ -179,7 +179,7 @@ def main(input_path, output_path):
 
         result = np.asarray(image)  # 这时转成np.ndarray后是rgb模式，out.write(result)保存为视频用
         # bgr = rgb[..., ::-1]    # rgb转bgr
-        result = result[..., ::-1]
+        result = result[..., ::-1]    # 转成BGR做cv2.imwrite()用
 
         print(time.time() - read_t1)
         log.logger.info("%f" % (time.time() - read_t1))
@@ -240,7 +240,7 @@ def main(input_path, output_path):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_detection", type=str, default="./configs/yolov5s.yaml")
+    parser.add_argument("--config_detection", type=str, default="./configs/yolov5s-evade.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     # parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display", action="store_true")

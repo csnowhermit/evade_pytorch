@@ -40,7 +40,7 @@ child_types = ['child']    # 小孩的表现类别
 goods_types = ['backpack', 'cell phone', 'umbrella', 'handbag', 'pushcart', 'trunk']    # 其他的表现类别
 
 # 人头的置信度下限
-person_types_threahold=0.62    # 只有大于该置信度的才能认为是人头
+person_types_threahold=0.6    # 只有大于等于该置信度的才能认为是人头
 
 # 保存路径
 normal_save_path = "D:/monitor_images/" + ip + "/normal_images/"

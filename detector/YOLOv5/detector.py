@@ -33,15 +33,23 @@ class YOLOv5(object):
     def __call__(self, ori_img):
         # img to tensor
         assert isinstance(ori_img, np.ndarray), "input must be a numpy array!"
-        img = ori_img.astype(np.float) / 255.
 
-        img = cv2.resize(img, (self.size, self.size))    # yolov5之前这么做resize
-        # 实际中，许多图片长宽比不同，直接cv2.resize()的话，两端的黑边大小都不同，而如果填充的较多，存在信息荣誉，影响推理速度
-        # rect = np.unique(img, axis=0).shape[0] == 1
-        # img = letterbox(img, new_shape=self.size, auto=rect)[0]    # yolov5采用这种方式进行resize，对原始图像自适应的添加最少的黑边
+        # img = cv2.resize(ori_img, (self.size, self.size))    # yolov5之前这么做resize
+        # # 实际中，许多图片长宽比不同，直接cv2.resize()的话，两端的黑边大小都不同，而如果填充的较多，存在信息荣誉，影响推理速度
+        # Padded resize
+        img = letterbox(ori_img, new_shape=self.size)[0]
 
-        img = torch.from_numpy(img).float().permute(2, 0, 1).unsqueeze(0)
-        pred = self.model(img)[0]
+        # Convert
+        img = img[:, :, ::-1].transpose(2, 0, 1)    # BGR转RGB，channel first
+        img = np.ascontiguousarray(img)
+
+        img = torch.from_numpy(img).to(self.device)       # 将图像放到指定设备上
+        img = img.half() if self.half else img.float()    # uint8 to fp16/32
+        img /= 255.0    # 归一化
+        if img.ndimension() == 3:
+            img = img.unsqueeze(0)
+
+        pred = self.model(img, augment=self.augment)[0]
 
         if self.half:
             pred = pred.float()
