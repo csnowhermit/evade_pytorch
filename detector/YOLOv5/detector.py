@@ -79,7 +79,7 @@ class YOLOv5(object):
                 cls_conf = torch.FloatTensor([])
                 cls_ids = torch.LongTensor([])
 
-        return bbox.detach().numpy(), cls_conf.detach().numpy(), cls_ids.detach().numpy()
+        return bbox.cpu().detach().numpy(), cls_conf.cpu().detach().numpy(), cls_ids.cpu().detach().numpy()    # 放到cpu上才能转numpy()
 
     def load_class_names(self, namesfile):
         with open(namesfile, 'r', encoding='utf8') as fp:
