@@ -80,3 +80,9 @@ person_nms_iou = 0.6
 
 # 除逃票外的通行状态类型
 pass_status_type_list = ['Delivery', 'block']
+
+# FTP日志
+ftp_ip = "192.168.0.27"
+ftp_username = "vdog"
+ftp_password = "123456"
+ftp_log = 'D:/evade_logs/ftp_%s.log' % ip

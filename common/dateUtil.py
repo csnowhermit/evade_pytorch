@@ -19,8 +19,20 @@ def formatTimestamp(timestamp, format="%Y-%m-%d_%H:%M:%S", ms=False):
         data_ms = "%s.%03d" % (data_head, data_secs)
         return data_ms
 
+'''
+    获取指定n天前的日期
+    :param n n为负数则为指定n天后的日期
+'''
+def getAppointDate(n=1):
+    today = datetime.date.today()
+    nday = datetime.timedelta(days=n)
+    nbefore = today - nday
+    return nbefore.strftime("%Y%m%d")
+
+
 
 if __name__ == '__main__':
     print(formatTimestamp(time.time()))
     print(formatTimestamp(time.time(), format="%Y-%m-%d_%H:%M"))
     print(formatTimestamp(time.time(), format="%Y-%m-%d_%H:%M:%S", ms=True))
+    print(type(getAppointDate()), getAppointDate())
