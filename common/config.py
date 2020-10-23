@@ -86,3 +86,5 @@ ftp_ip = "192.168.0.27"
 ftp_username = "vdog"
 ftp_password = "123456"
 ftp_log = 'D:/evade_logs/ftp_%s.log' % ip
+
+table_ftpLog = "ftplog_%s" % (ip.replace(".", "_"))    # ftp日志表

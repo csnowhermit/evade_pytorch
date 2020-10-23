@@ -29,3 +29,6 @@ class Stack:
                 self.items.remove(self.items[0])
             # self.items.clear()    # 压栈时，超过缓冲区大小，直接清空
         self.items.append(item)
+
+    def clear(self):
+        self.items.clear()

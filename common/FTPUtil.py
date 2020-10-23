@@ -132,6 +132,25 @@ class MyFTP:
         file_handler.close()
         self.debug_print('上传: %s' % local_file + "成功!")
 
+    '''
+        创建ftp远程目录
+    '''
+    def create_ftp_path(self, remote_path):
+        try:
+            self.ftp.cwd(remote_path)  # 切换工作路径，抛异常，说明该路径不存在
+        except Exception as e:
+            # base_dir, part_path = self.ftp.pwd(), remote_path.split('/')    # 这里base_dir不能用当前路径，应该每次从根目录开始
+            base_dir, part_path = "/", remote_path.split('/')
+            for p in part_path[1:-1]:
+                base_dir = base_dir + p + '/'  # 拼接子目录
+                try:
+                    self.ftp.cwd(base_dir)  # 切换到子目录, 不存在则异常
+                except Exception as e:
+                    print('INFO:', e)
+                    self.ftp.mkd(base_dir)  # 不存在创建当前子目录
+                    print("INFO: 已创建目录: %s" % (base_dir))
+                    self.debug_print("INFO: 已创建目录: %s" % (base_dir))
+
     # 上传本地目录到服务器
     def upload_file_tree(self, local_path, remote_path):
         if not os.path.isdir(local_path):
@@ -217,11 +236,20 @@ if __name__ == "__main__":
     #my_ftp.set_pasv(False)
     my_ftp.login("vdog", "123456")
 
+    # # my_ftp.create_ftp_path("/10.6.8.181/evade_images/20201024/2250/3333/123.jpg")
+    # ftp_path = "D:/monitor_images/10.6.8.181/evade_images/20200904/10.6.8.181_20200904_134527.217.jpg"
+    # # print(ftp_path[:, ftp_path.rindex("/")])
+    # print(ftp_path.rindex("/"))
+    # # print()
+    # dirs = ftp_path[17: ftp_path.rindex("/") + 1]
+    # print(dirs)
+    # my_ftp.create_ftp_path(dirs)
+
     while True:
         # 上传单个文件
-        my_ftp.upload_file("D:/monitor_images/10.6.8.181/normal_images/20200904.zip", "/10.6.8.181/normal_images/20200904.zip")
+        my_ftp.upload_file("D:/monitor_images/10.6.8.181/evade_images/20201023/10.6.8.181_20201023_110508.855.jpg", "/10.6.8.181/evade_images/20201023/10.6.8.181_20201023_110508.855.jpg")
 
-        isSame = my_ftp.is_same_size("D:/monitor_images/10.6.8.181/normal_images/20200904.zip", "/10.6.8.181/normal_images/20200904.zip")
+        isSame = my_ftp.is_same_size("D:/monitor_images/10.6.8.181/evade_images/20201023/10.6.8.181_20201023_110508.855.jpg", "/10.6.8.181/evade_images/20201023/10.6.8.181_20201023_110508.855.jpg")
         if isSame == 1:
             break
         else:

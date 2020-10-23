@@ -1,7 +1,9 @@
 import re
 import json
+import time
 import traceback
-from common.config import conn, cursor, log, table_name, evade_table_name
+from common.config import conn, cursor, log, table_name, evade_table_name, ip, table_ftpLog
+from common.dateUtil import formatTimestamp
 
 '''
     数据库操作工具
@@ -158,6 +160,50 @@ def getMaxPersonID():
 
     log.logger.info("start person_id：%d" % max_person_id)
     return max_person_id
+
+'''
+    创建ftp日志表
+'''
+def create_ftp_log_table():
+    sql = '''
+            CREATE TABLE `%s` (
+                `curr_time` varchar(50) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT '当前时刻，精确到ms',
+                `ip` varchar(50) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT 'ip',
+                `local_file` varchar(255) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT '本地文件路径',
+                `ftp_file` varchar(255) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT 'ftp文件路径',
+                `upload_status` varchar(50) NULL DEFAULT NULL COMMENT '上传状态：1成功，0失败'
+            ) ENGINE = InnoDB CHARACTER SET = utf8mb4 ROW_FORMAT = Dynamic;
+        ''' % (table_ftpLog)
+
+    ret = cursor.execute(sql)
+    log.logger.info("%s 表已创建: %s" % (table_ftpLog, ret))
+    return ret
+
+'''
+    保存FTP上传记录
+    :param zipTargetFile 本地文件路径
+    :param ftpTargetFile ftp上文件路径
+    :param isSame 上传状态：1成功，0失败
+'''
+def saveFTPLog2DB(zipTargetFile, ftpTargetFile, isSame):
+    if table_exists(table_ftpLog) is False:
+        create_ftp_log_table()
+
+    try:
+        sql = "insert into %s" % (table_ftpLog)
+        sql = sql + '''
+                (curr_time, ip, local_file, ftp_file, upload_status) 
+                VALUES ('%s', '%s', '%s', '%s', '%s')
+              ''' % (formatTimestamp(time.time(), format="%Y-%m-%d_%H:%M:%S", ms=True), ip,
+                     zipTargetFile, ftpTargetFile, isSame)
+
+        cursor.execute(sql)
+        conn.commit()
+    except Exception as e:
+        traceback.print_exc(e)
+        conn.rollback()
+    return 0
+
 
 if __name__ == '__main__':
     # print(table_exists("details_10.6.8.181"))

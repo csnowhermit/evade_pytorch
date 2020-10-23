@@ -7,6 +7,7 @@ from common.dateUtil import formatTimestamp, getAppointDate
 from common.config import ip, ftp_ip, ftp_username, ftp_password
 from common.compressionUtil import writeAllFileToZip
 from common.FTPUtil import MyFTP
+from common.dbUtil import saveFTPLog2DB
 
 '''
     ETL终端：定期扫描指定目录，压缩并上传到服务器
@@ -49,10 +50,12 @@ def compress(n=1):
             # 上传单个文件
             my_ftp.upload_file(zipTargetFile, ftpTargetFile)
 
-            isSame = my_ftp.is_same_size(zipTargetFile,ftpTargetFile)
+            isSame = my_ftp.is_same_size(zipTargetFile, ftpTargetFile)
             if isSame == 1:    # 上传成功
+                saveFTPLog2DB(zipTargetFile, ftpTargetFile, isSame)    # 保存每个文件的上传记录
                 break
             else:
+                saveFTPLog2DB(zipTargetFile, ftpTargetFile, isSame)  # 上传失败的也保存日志
                 time.sleep(10)  # 上传失败后稍作延时重试
     my_ftp.close()
     # # 上传完成之后将本地文件删除
@@ -60,7 +63,7 @@ def compress(n=1):
     #     shutil.rmtree(absDir)
     #     os.remove(zipTargetFile)
 
-schedule.every().day.at("15:51").do(compress, 2)
+schedule.every().day.at("09:46").do(compress, 3)
 
 if __name__ == '__main__':
     while True:
