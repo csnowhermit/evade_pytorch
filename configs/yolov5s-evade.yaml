@@ -1,6 +1,6 @@
 YOLOV5:
   CFG: "./detector/YOLOv5/models/yolov5s-evade.yaml"
-  WEIGHT: "./detector/YOLOv5/weight/s_evade_last_320_1000_20200902.pt"
+  WEIGHT: "./detector/YOLOv5/weight/s_evade_best_320_1000_20200902.pt"
   CLASS_NAMES: "./detector/YOLOv5/cfg/evade.names"
 
   SCORE_THRESH: 0.5
