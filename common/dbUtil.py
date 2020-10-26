@@ -171,7 +171,8 @@ def create_ftp_log_table():
                 `ip` varchar(50) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT 'ip',
                 `local_file` varchar(255) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT '本地文件路径',
                 `ftp_file` varchar(255) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT 'ftp文件路径',
-                `upload_status` varchar(50) NULL DEFAULT NULL COMMENT '上传状态：1成功，0失败'
+                `upload_status` varchar(50) NULL DEFAULT NULL COMMENT '上传状态：1成功，0失败', 
+                INDEX `idx_local_file`(`local_file`) USING BTREE COMMENT '根据本地文件名查询'
             ) ENGINE = InnoDB CHARACTER SET = utf8mb4 ROW_FORMAT = Dynamic;
         ''' % (table_ftpLog)
 
@@ -204,6 +205,23 @@ def saveFTPLog2DB(zipTargetFile, ftpTargetFile, isSame):
         conn.rollback()
     return 0
 
+'''
+    获取文件在FTP服务器的状态
+'''
+def getFileStatusInFTP(local_file):
+    if table_exists(table_ftpLog) is False:
+        create_ftp_log_table()
+
+    # FTP Log中有记录，并上传成功
+    sql = "select count(1) from %s where local_file='%s' and upload_status='1'" % (table_ftpLog, local_file)    # 找正常表中最大值
+    cursor.execute(sql)
+    results = cursor.fetchall()    # results[0], <class 'tuple'>
+    if results[0][0] is None:
+        ftp_num = 0
+    else:
+        ftp_num = results[0][0]
+    return ftp_num
+
 
 if __name__ == '__main__':
     # print(table_exists("details_10.6.8.181"))
@@ -213,4 +231,5 @@ if __name__ == '__main__':
     #     print(create_detail_info_table(table_name))
     # else:
     #     print(table_name + " 表已存在")
-    print(getMaxPersonID())
+    # print(getMaxPersonID())
+    print(getFileStatusInFTP("D:/monitor_images/10.6.8.181/normal_images/20201026/10.6.8.181_20201026_084728.395.jpg"))

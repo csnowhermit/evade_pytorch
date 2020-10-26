@@ -1,8 +1,12 @@
 import os
+import sys
 import time
 import schedule
 import zipfile
 import shutil
+
+base_path = "D:/workspace/workspace_python/evade_pytorch"
+sys.path.append(base_path)
 from common.dateUtil import formatTimestamp, getAppointDate
 from common.config import ip, ftp_ip, ftp_username, ftp_password
 from common.compressionUtil import writeAllFileToZip
@@ -10,7 +14,7 @@ from common.FTPUtil import MyFTP
 from common.dbUtil import saveFTPLog2DB
 
 '''
-    ETL终端：定期扫描指定目录，压缩并上传到服务器
+    定期扫描指定目录，压缩并上传到服务器
 '''
 
 src_base = ['D:/monitor_images/%s/evade_images/' % (ip),
