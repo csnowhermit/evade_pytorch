@@ -289,7 +289,7 @@ def main(cfg, base_path):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_detection", type=str, default="./configs/yolov5m-evade.yaml")
+    parser.add_argument("--config_detection", type=str, default="./configs/yolov5l-evade.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     # parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display", action="store_true")
