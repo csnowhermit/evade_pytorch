@@ -104,7 +104,9 @@ def create_detail_info_table(table_name):
             `gate_num` varchar(2) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT '闸机编号',
             `gate_status` varchar(255) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT '闸机门状态',
             `gate_light_status` varchar(255) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT '闸机灯状态',
-            `direction` varchar(2) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT '方向：0出站，1进站'
+            `direction` varchar(2) CHARACTER SET utf8mb4 NULL DEFAULT NULL COMMENT '方向：0出站，1进站', 
+            INDEX `idx_currtime`(`curr_time`) USING BTREE COMMENT '时间字段常规索引',
+            INDEX `idx_savefile`(`savefile`) USING BTREE COMMENT '保存文件字段常规索引'
         ) ENGINE = InnoDB CHARACTER SET = utf8mb4 ROW_FORMAT = Dynamic;
     ''' % (table_name)
 

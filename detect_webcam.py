@@ -80,22 +80,22 @@ def capture_thread(input_webcam, frame_buffer, lock, imgCacheList, md5List):
         lock.acquire()
         frame_buffer.push(frame)    # 用于跳帧识别的缓存
 
-        try:
-            imgCacheList.append(frame)  # 用来生成截取视频的缓存
-            sign = hashlib.md5(frame).hexdigest()
-            md5List.append(sign)  # 图片的签名值
-            if len(imgCacheList) > imgCacheSize:  # 如果超长，则删除最前面的
-                imgCacheList.remove(imgCacheList[0])
-            if len(md5List) > imgNearSize:
-                md5List.remove(md5List[0])
-        except TypeError as e:
-            print("视频序列准备失败: %s" % (traceback.format_exc()))
-            log.logger.error("视频序列准备失败: %s" % (traceback.format_exc()))
-            pass
-        except Exception as e:
-            print("视频序列准备失败: %s" % (traceback.format_exc()))
-            log.logger.error("视频序列准备失败: %s" % (traceback.format_exc()))
-            pass
+        # try:
+        #     imgCacheList.append(frame)  # 用来生成截取视频的缓存
+        #     sign = hashlib.md5(frame).hexdigest()
+        #     md5List.append(sign)  # 图片的签名值
+        #     if len(imgCacheList) > imgCacheSize:  # 如果超长，则删除最前面的
+        #         imgCacheList.remove(imgCacheList[0])
+        #     if len(md5List) > imgNearSize:
+        #         md5List.remove(md5List[0])
+        # except TypeError as e:
+        #     print("视频序列准备失败: %s" % (traceback.format_exc()))
+        #     log.logger.error("视频序列准备失败: %s" % (traceback.format_exc()))
+        #     pass
+        # except Exception as e:
+        #     print("视频序列准备失败: %s" % (traceback.format_exc()))
+        #     log.logger.error("视频序列准备失败: %s" % (traceback.format_exc()))
+        #     pass
 
         lock.release()
         cv2.waitKey(25)    # delay 25ms
@@ -269,31 +269,31 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
                     if os.path.exists(evade_video_time_path) is False:
                         os.makedirs(evade_video_time_path)
 
-                    if flag == "NORMAL":  # 正常情况
+                    if flag == "NORMAL":  # 正常情况（20201029更新：正常情况和逃票小视频不保存了）
                         savefile = os.path.join(normal_time_path, ip + "_" + curr_time_path + ".jpg")
-                        status = cv2.imwrite(filename=savefile, img=result)  # cv2.imwrite()保存文件，路径不能有2个及以上冒号
-
+                        # status = cv2.imwrite(filename=savefile, img=result)  # cv2.imwrite()保存文件，路径不能有2个及以上冒号
+                        status = False
                         print("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
                         log.logger.info("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
 
-                        ftp_retry = 0
-                        while True:
-                            # 拼接ftp服务器的目录
-                            ftp_path = savefile[17: savefile.rindex("/") + 1]
-                            ftp_file = ftp_path + savefile[savefile.rindex("/") + 1:]
-                            my_ftp.create_ftp_path(ftp_path)
-                            my_ftp.upload_file(savefile, ftp_file)
-
-                            isSame = my_ftp.is_same_size(savefile, ftp_file)
-                            if isSame == 1:  # 上传成功
-                                saveFTPLog2DB(savefile, ftp_file, isSame)  # 保存每个文件的上传记录
-                                break
-                            else:
-                                saveFTPLog2DB(savefile, ftp_file, isSame)  # 上传失败的也保存日志
-                                time.sleep(3)  # 上传失败后稍作延时重试
-                                ftp_retry += 1
-                                if ftp_retry > 3:    # 上传ftp，重试3次
-                                    break
+                        # ftp_retry = 0
+                        # while True:
+                        #     # 拼接ftp服务器的目录
+                        #     ftp_path = savefile[17: savefile.rindex("/") + 1]
+                        #     ftp_file = ftp_path + savefile[savefile.rindex("/") + 1:]
+                        #     my_ftp.create_ftp_path(ftp_path)
+                        #     my_ftp.upload_file(savefile, ftp_file)
+                        #
+                        #     isSame = my_ftp.is_same_size(savefile, ftp_file)
+                        #     if isSame == 1:  # 上传成功
+                        #         saveFTPLog2DB(savefile, ftp_file, isSame)  # 保存每个文件的上传记录
+                        #         break
+                        #     else:
+                        #         saveFTPLog2DB(savefile, ftp_file, isSame)  # 上传失败的也保存日志
+                        #         time.sleep(3)  # 上传失败后稍作延时重试
+                        #         ftp_retry += 1
+                        #         if ftp_retry > 3:    # 上传ftp，重试3次
+                        #             break
                     elif flag == "WARNING":  # 逃票情况
                         savefile = os.path.join(evade_time_path, ip + "_" + curr_time_path + ".jpg")
                         status = cv2.imwrite(filename=savefile, img=result)
@@ -344,56 +344,56 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
                                 ftp_retry += 1
                                 if ftp_retry > 3:  # 上传ftp，重试3次
                                     break
-                        # 开始拼接视频
-                        lock.acquire()
-                        try:
-                            # index = imgCacheList.index(frame)    # 找到当前图片的所属下标
-                            sign = hashlib.md5(frame).hexdigest()
-                            index = md5List.index(sign)  # 用md5值匹配找图
-
-                            start = max(0, index - imgNearSize)
-                            end = min(len(imgCacheList), index + imgNearSize)
-                            tmp = imgCacheList[start: end]
-                            lock.release()
-
-                            video_FourCC = 875967080
-                            video_fps = 25
-                            video_size = (frame.shape[1], frame.shape[0])
-                            video_file = os.path.join(evade_video_time_path, ip + "_" + curr_time_path + ".mp4")
-
-                            out = cv2.VideoWriter(video_file, video_FourCC, video_fps, video_size)
-                            for t in tmp:
-                                out.write(t)
-                            out.release()
-
-                            print("视频保存完成: %s" % (video_file))
-                            log.logger.info("视频保存完成: %s" % (video_file))
-
-                            ftp_retry = 0
-                            while True:  # 保存上下文视频
-                                # 拼接ftp服务器的目录
-                                ftp_path = originfile[17: video_file.rindex("/") + 1]
-                                ftp_file = ftp_path + originfile[video_file.rindex("/") + 1:]
-                                my_ftp.create_ftp_path(ftp_path)
-                                my_ftp.upload_file(video_file, ftp_file)
-
-                                isSame = my_ftp.is_same_size(video_file, ftp_file)
-                                if isSame == 1:  # 上传成功
-                                    saveFTPLog2DB(video_file, ftp_file, isSame)  # 保存每个文件的上传记录
-                                    break
-                                else:
-                                    saveFTPLog2DB(video_file, ftp_file, isSame)  # 上传失败的也保存日志
-                                    time.sleep(3)  # 上传失败后稍作延时重试
-                                    ftp_retry += 1
-                                    if ftp_retry > 3:  # 上传ftp，重试3次
-                                        break
-                        except ValueError as e:
-                            lock.release()
-                            print("当前图片不存在于缓存中: %s" % (traceback.format_exc()))
-                            log.logger.error("当前图片不存在于缓存中: %s" % (traceback.format_exc()))
-
-                        print("视频保存完成: %s" % (video_file))
-                        log.logger.info("视频保存完成: %s" % (video_file))
+                        # # 开始拼接视频（视频不拼接了，放到后端 录制+截取）
+                        # lock.acquire()
+                        # try:
+                        #     # index = imgCacheList.index(frame)    # 找到当前图片的所属下标
+                        #     sign = hashlib.md5(frame).hexdigest()
+                        #     index = md5List.index(sign)  # 用md5值匹配找图
+                        #
+                        #     start = max(0, index - imgNearSize)
+                        #     end = min(len(imgCacheList), index + imgNearSize)
+                        #     tmp = imgCacheList[start: end]
+                        #     lock.release()
+                        #
+                        #     video_FourCC = 875967080
+                        #     video_fps = 25
+                        #     video_size = (frame.shape[1], frame.shape[0])
+                        #     video_file = os.path.join(evade_video_time_path, ip + "_" + curr_time_path + ".mp4")
+                        #
+                        #     out = cv2.VideoWriter(video_file, video_FourCC, video_fps, video_size)
+                        #     for t in tmp:
+                        #         out.write(t)
+                        #     out.release()
+                        #
+                        #     print("视频保存完成: %s" % (video_file))
+                        #     log.logger.info("视频保存完成: %s" % (video_file))
+                        #
+                        #     ftp_retry = 0
+                        #     while True:  # 保存上下文视频
+                        #         # 拼接ftp服务器的目录
+                        #         ftp_path = originfile[17: video_file.rindex("/") + 1]
+                        #         ftp_file = ftp_path + originfile[video_file.rindex("/") + 1:]
+                        #         my_ftp.create_ftp_path(ftp_path)
+                        #         my_ftp.upload_file(video_file, ftp_file)
+                        #
+                        #         isSame = my_ftp.is_same_size(video_file, ftp_file)
+                        #         if isSame == 1:  # 上传成功
+                        #             saveFTPLog2DB(video_file, ftp_file, isSame)  # 保存每个文件的上传记录
+                        #             break
+                        #         else:
+                        #             saveFTPLog2DB(video_file, ftp_file, isSame)  # 上传失败的也保存日志
+                        #             time.sleep(3)  # 上传失败后稍作延时重试
+                        #             ftp_retry += 1
+                        #             if ftp_retry > 3:  # 上传ftp，重试3次
+                        #                 break
+                        # except ValueError as e:
+                        #     lock.release()
+                        #     print("当前图片不存在于缓存中: %s" % (traceback.format_exc()))
+                        #     log.logger.error("当前图片不存在于缓存中: %s" % (traceback.format_exc()))
+                        #
+                        # print("视频保存完成: %s" % (video_file))
+                        # log.logger.info("视频保存完成: %s" % (video_file))
                     else:  # 没人的情况
                         print("时间: %s, 状态: %s" % (curr_time_path, flag))
                         log.logger.info("时间: %s, 状态: %s" % (curr_time_path, flag))
