@@ -10,6 +10,6 @@ YOLOV5:
   augment: False
   conf_thres: 0.3
   half: False
-  img_size: 320
+  img_size: 608
   iou_thres: 0.45
   opt_classes: None
