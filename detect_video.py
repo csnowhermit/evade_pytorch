@@ -31,10 +31,10 @@ from detector import build_detector
 from deep_sort import build_tracker
 
 def main(input_path, output_path):
-    # 准备FTP服务器
-    my_ftp = MyFTP(ftp_ip)
-    # my_ftp.set_pasv(False)
-    my_ftp.login(ftp_username, ftp_password)
+    # # 准备FTP服务器
+    # my_ftp = MyFTP(ftp_ip)
+    # # my_ftp.set_pasv(False)
+    # my_ftp.login(ftp_username, ftp_password)
 
     use_cuda = torch.cuda.is_available()  # 是否用cuda
     curr_person_id = getMaxPersonID()  # 目前最大人物ID
@@ -213,29 +213,29 @@ def main(input_path, output_path):
 
             if flag == "NORMAL":  # 正常情况
                 savefile = os.path.join(normal_time_path, ip + "_" + curr_time_path + ".jpg")
-                status = cv2.imwrite(filename=savefile, img=result)  # cv2.imwrite()保存文件，路径不能有2个及以上冒号
-
+                # status = cv2.imwrite(filename=savefile, img=result)  # cv2.imwrite()保存文件，路径不能有2个及以上冒号
+                status = False
                 print("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
                 log.logger.info("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
 
-                ftp_retry = 0
-                while True:
-                    # 拼接ftp服务器的目录
-                    ftp_path = savefile[17: savefile.rindex("/") + 1]
-                    ftp_file = ftp_path + savefile[savefile.rindex("/") + 1:]
-                    my_ftp.create_ftp_path(ftp_path)
-                    my_ftp.upload_file(savefile, ftp_file)
-
-                    isSame = my_ftp.is_same_size(savefile, ftp_file)
-                    if isSame == 1:  # 上传成功
-                        saveFTPLog2DB(savefile, ftp_file, isSame)  # 保存每个文件的上传记录
-                        break
-                    else:
-                        saveFTPLog2DB(savefile, ftp_file, isSame)  # 上传失败的也保存日志
-                        time.sleep(3)  # 上传失败后稍作延时重试
-                        ftp_retry += 1
-                        if ftp_retry > 3:  # 上传ftp，重试3次
-                            break
+                # ftp_retry = 0
+                # while True:
+                #     # 拼接ftp服务器的目录
+                #     ftp_path = savefile[17: savefile.rindex("/") + 1]
+                #     ftp_file = ftp_path + savefile[savefile.rindex("/") + 1:]
+                #     my_ftp.create_ftp_path(ftp_path)
+                #     my_ftp.upload_file(savefile, ftp_file)
+                #
+                #     isSame = my_ftp.is_same_size(savefile, ftp_file)
+                #     if isSame == 1:  # 上传成功
+                #         saveFTPLog2DB(savefile, ftp_file, isSame)  # 保存每个文件的上传记录
+                #         break
+                #     else:
+                #         saveFTPLog2DB(savefile, ftp_file, isSame)  # 上传失败的也保存日志
+                #         time.sleep(3)  # 上传失败后稍作延时重试
+                #         ftp_retry += 1
+                #         if ftp_retry > 3:  # 上传ftp，重试3次
+                #             break
             elif flag == "WARNING":  # 逃票情况
                 savefile = os.path.join(evade_time_path, ip + "_" + curr_time_path + ".jpg")
                 status = cv2.imwrite(filename=savefile, img=result)
@@ -249,43 +249,43 @@ def main(input_path, output_path):
                 log.logger.warn("时间: %s, 状态: %s, 原始文件: %s, 保存状态: %s, 检后文件: %s, 保存状态: %s" % (
                     curr_time_path, flag, originfile, status2, savefile, status))
 
-                ftp_retry = 0
-                while True:  # 上传标注过的图片
-                    # 拼接ftp服务器的目录
-                    ftp_path = savefile[17: savefile.rindex("/") + 1]
-                    ftp_file = ftp_path + savefile[savefile.rindex("/") + 1:]
-                    my_ftp.create_ftp_path(ftp_path)
-                    my_ftp.upload_file(savefile, ftp_file)
-
-                    isSame = my_ftp.is_same_size(savefile, ftp_file)
-                    if isSame == 1:  # 上传成功
-                        saveFTPLog2DB(savefile, ftp_file, isSame)  # 保存每个文件的上传记录
-                        break
-                    else:
-                        saveFTPLog2DB(savefile, ftp_file, isSame)  # 上传失败的也保存日志
-                        time.sleep(3)  # 上传失败后稍作延时重试
-                        ftp_retry += 1
-                        if ftp_retry > 3:  # 上传ftp，重试3次
-                            break
-
-                ftp_retry = 0
-                while True:  # 上传原始图片
-                    # 拼接ftp服务器的目录
-                    ftp_path = originfile[17: originfile.rindex("/") + 1]
-                    ftp_file = ftp_path + originfile[originfile.rindex("/") + 1:]
-                    my_ftp.create_ftp_path(ftp_path)
-                    my_ftp.upload_file(originfile, ftp_file)
-
-                    isSame = my_ftp.is_same_size(originfile, ftp_file)
-                    if isSame == 1:  # 上传成功
-                        saveFTPLog2DB(originfile, ftp_file, isSame)  # 保存每个文件的上传记录
-                        break
-                    else:
-                        saveFTPLog2DB(originfile, ftp_file, isSame)  # 上传失败的也保存日志
-                        time.sleep(3)  # 上传失败后稍作延时重试
-                        ftp_retry += 1
-                        if ftp_retry > 3:  # 上传ftp，重试3次
-                            break
+                # ftp_retry = 0
+                # while True:  # 上传标注过的图片
+                #     # 拼接ftp服务器的目录
+                #     ftp_path = savefile[17: savefile.rindex("/") + 1]
+                #     ftp_file = ftp_path + savefile[savefile.rindex("/") + 1:]
+                #     my_ftp.create_ftp_path(ftp_path)
+                #     my_ftp.upload_file(savefile, ftp_file)
+                #
+                #     isSame = my_ftp.is_same_size(savefile, ftp_file)
+                #     if isSame == 1:  # 上传成功
+                #         saveFTPLog2DB(savefile, ftp_file, isSame)  # 保存每个文件的上传记录
+                #         break
+                #     else:
+                #         saveFTPLog2DB(savefile, ftp_file, isSame)  # 上传失败的也保存日志
+                #         time.sleep(3)  # 上传失败后稍作延时重试
+                #         ftp_retry += 1
+                #         if ftp_retry > 3:  # 上传ftp，重试3次
+                #             break
+                #
+                # ftp_retry = 0
+                # while True:  # 上传原始图片
+                #     # 拼接ftp服务器的目录
+                #     ftp_path = originfile[17: originfile.rindex("/") + 1]
+                #     ftp_file = ftp_path + originfile[originfile.rindex("/") + 1:]
+                #     my_ftp.create_ftp_path(ftp_path)
+                #     my_ftp.upload_file(originfile, ftp_file)
+                #
+                #     isSame = my_ftp.is_same_size(originfile, ftp_file)
+                #     if isSame == 1:  # 上传成功
+                #         saveFTPLog2DB(originfile, ftp_file, isSame)  # 保存每个文件的上传记录
+                #         break
+                #     else:
+                #         saveFTPLog2DB(originfile, ftp_file, isSame)  # 上传失败的也保存日志
+                #         time.sleep(3)  # 上传失败后稍作延时重试
+                #         ftp_retry += 1
+                #         if ftp_retry > 3:  # 上传ftp，重试3次
+                #             break
             else:  # 没人的情况
                 print("时间: %s, 状态: %s" % (curr_time_path, flag))
                 log.logger.info("时间: %s, 状态: %s" % (curr_time_path, flag))
