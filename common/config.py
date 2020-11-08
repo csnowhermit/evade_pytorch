@@ -1,5 +1,6 @@
 import os
 import pymysql
+import hashlib
 from common.Logger import Logger as Logger
 
 '''
@@ -12,6 +13,13 @@ zkurl = "127.0.0.1:2181"
 # 连接摄像头
 ip = "10.6.8.181"
 rtsp_url = "rtsp://admin:quickhigh123456@192.168.120.155/h264/ch1/sub/av_stream"    # 用子码流读取
+
+# appid
+# thispath = os.path.abspath(__file__)
+# appid = hashlib.md5(thispath.encode("utf-8")).hexdigest()[-8:]    # appid计算方法
+# print(appid)
+appid = "c90d7f6e"
+
 
 # 图像大小
 # image_size = "1920x1080"
@@ -65,9 +73,9 @@ imgNearSize = 30 * 5    # 用前后n秒的图片合成视频
 up_distance_rate = 0.6
 down_distance_rate = 0.2
 
-
 # 日志文件
-logfile = 'D:/evade_logs/evade_%s.log' % ip
+logfile = 'D:/evade_logs/evade_%s_%s.log' % (ip, appid)
+print(logfile)
 # logfile = 'D:/evade_logs/evade.log'    # 多路摄像机同时接入一个实例识别时，用这个log
 log = Logger(logfile, level='info')
 

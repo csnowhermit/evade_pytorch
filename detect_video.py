@@ -75,15 +75,19 @@ def main(input_path, output_path):
     count = 0
     while True:
         read_t1 = time.time()  # 读取动作开始
-        print("=================== (%g/%g) start a image reco %s ===================" % (count, video_Frames, formatTimestamp(time.time(), ms=True)))
-        log.logger.info("=================== (%g/%g) start a image reco %s ===================" % (count, video_Frames, formatTimestamp(time.time(), ms=True)))
-        count += 1
 
         ret, frame = video_capture.read()  # frame shape (h, w, c) (1080, 1920, 3)
         if ret != True:
             log.logger.error("video_capture.read(): %s" % ret)
             break
         read_time = time.time() - read_t1  # 读取动作结束
+        n = 2
+        if count % n == 0:    # 每n帧跳过一帧
+            count += 1
+            continue
+        print("=================== (%g/%g) start a image reco %s ===================" % (count, video_Frames, formatTimestamp(time.time(), ms=True)))
+        log.logger.info("=================== (%g/%g) start a image reco %s ===================" % (count, video_Frames, formatTimestamp(time.time(), ms=True)))
+        count += 1
         detect_t1 = time.time()  # 检测动作开始
 
         # 先做检测
@@ -122,75 +126,76 @@ def main(input_path, output_path):
 
         detect_time = time.time() - detect_t1  # 检测动作结束
 
-        # 标注
-        # image = Image.fromarray(frame)  # 这里不用再转：已经是rgb了
-        image = Image.fromarray(frame[..., ::-1])  # bgr to rgb，转成RGB格式进行做标注
-        draw = ImageDraw.Draw(image)
+        if flag == "WARNING":
+            # 标注（只对逃票情况进行标注，正常情况不标注了）
+            # image = Image.fromarray(frame)  # 这里不用再转：已经是rgb了
+            image = Image.fromarray(frame[..., ::-1])  # bgr to rgb，转成RGB格式进行做标注
+            draw = ImageDraw.Draw(image)
 
-        for track in trackList:  # 标注人，track.state=0/1，都在tracker.tracks中
-            bbox = track.to_tlbr()  # 左上右下
-            label = '{} {:.2f} {} {}'.format(track.classes, track.score, track.track_id, track.state)
-            label_size = draw.textsize(label, font)
+            for track in trackList:  # 标注人，track.state=0/1，都在tracker.tracks中
+                bbox = track.to_tlbr()  # 左上右下
+                label = '{} {:.2f} {} {}'.format(track.classes, track.score, track.track_id, track.state)
+                label_size = draw.textsize(label, font)
 
-            left, top, right, bottom = bbox
-            top = max(0, np.floor(top + 0.5).astype('int32'))
-            left = max(0, np.floor(left + 0.5).astype('int32'))
-            bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
-            right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
-            print(label, (left, top), (right, bottom))
-            log.logger.info("%s, (%d, %d), (%d, %d)" % (label, left, top, right, bottom))
+                left, top, right, bottom = bbox
+                top = max(0, np.floor(top + 0.5).astype('int32'))
+                left = max(0, np.floor(left + 0.5).astype('int32'))
+                bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
+                right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
+                print(label, (left, top), (right, bottom))
+                log.logger.info("%s, (%d, %d), (%d, %d)" % (label, left, top, right, bottom))
 
-            if top - label_size[1] >= 0:
-                text_origin = np.array([left, top - label_size[1]])
-            else:
-                text_origin = np.array([left, top + 1])
+                if top - label_size[1] >= 0:
+                    text_origin = np.array([left, top - label_size[1]])
+                else:
+                    text_origin = np.array([left, top + 1])
 
-            # My kingdom for a good redistributable image drawing library.
-            for i in range(thickness):
+                # My kingdom for a good redistributable image drawing library.
+                for i in range(thickness):
+                    draw.rectangle(
+                        [left + i, top + i, right - i, bottom - i],
+                        outline=colors[class_names.index(track.classes)])
                 draw.rectangle(
-                    [left + i, top + i, right - i, bottom - i],
-                    outline=colors[class_names.index(track.classes)])
-            draw.rectangle(
-                [tuple(text_origin), tuple(text_origin + label_size)],
-                fill=colors[class_names.index(track.classes)])
-            draw.text(text_origin, label, fill=(0, 0, 0), font=font)
+                    [tuple(text_origin), tuple(text_origin + label_size)],
+                    fill=colors[class_names.index(track.classes)])
+                draw.text(text_origin, label, fill=(0, 0, 0), font=font)
 
-        for (other_cls, other_box, other_score) in zip(other_classes, other_boxs,
-                                                       other_scores):  # 其他的识别，只标注类别和得分值
-            label = '{} {:.2f}'.format(other_cls, other_score)
-            # print("label:", label)
-            label_size = draw.textsize(label, font)
+            for (other_cls, other_box, other_score) in zip(other_classes, other_boxs,
+                                                           other_scores):  # 其他的识别，只标注类别和得分值
+                label = '{} {:.2f}'.format(other_cls, other_score)
+                # print("label:", label)
+                label_size = draw.textsize(label, font)
 
-            top, left, bottom, right = other_box
-            top = max(0, np.floor(top + 0.5).astype('int32'))
-            left = max(0, np.floor(left + 0.5).astype('int32'))
-            bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
-            right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
-            print(label, (left, top), (right, bottom))
-            log.logger.info("%s, (%d, %d), (%d, %d)" % (label, left, top, right, bottom))
+                top, left, bottom, right = other_box
+                top = max(0, np.floor(top + 0.5).astype('int32'))
+                left = max(0, np.floor(left + 0.5).astype('int32'))
+                bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
+                right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
+                print(label, (left, top), (right, bottom))
+                log.logger.info("%s, (%d, %d), (%d, %d)" % (label, left, top, right, bottom))
 
-            if top - label_size[1] >= 0:
-                text_origin = np.array([left, top - label_size[1]])
-            else:
-                text_origin = np.array([left, top + 1])
+                if top - label_size[1] >= 0:
+                    text_origin = np.array([left, top - label_size[1]])
+                else:
+                    text_origin = np.array([left, top + 1])
 
-            # My kingdom for a good redistributable image drawing library.
-            for i in range(thickness):
+                # My kingdom for a good redistributable image drawing library.
+                for i in range(thickness):
+                    draw.rectangle(
+                        [left + i, top + i, right - i, bottom - i],
+                        outline=colors[class_names.index(other_cls)])
                 draw.rectangle(
-                    [left + i, top + i, right - i, bottom - i],
-                    outline=colors[class_names.index(other_cls)])
-            draw.rectangle(
-                [tuple(text_origin), tuple(text_origin + label_size)],
-                fill=colors[class_names.index(other_cls)])
-            draw.text(text_origin, label, fill=(0, 0, 0), font=font)
-        del draw
+                    [tuple(text_origin), tuple(text_origin + label_size)],
+                    fill=colors[class_names.index(other_cls)])
+                draw.text(text_origin, label, fill=(0, 0, 0), font=font)
+            del draw
 
-        result = np.asarray(image)  # 这时转成np.ndarray后是rgb模式，out.write(result)保存为视频用
-        # bgr = rgb[..., ::-1]    # rgb转bgr
-        result = result[..., ::-1]    # 转成BGR做cv2.imwrite()用
+            result = np.asarray(image)  # 这时转成np.ndarray后是rgb模式，out.write(result)保存为视频用
+            # bgr = rgb[..., ::-1]    # rgb转bgr
+            result = result[..., ::-1]  # 转成BGR做cv2.imwrite()用
 
         print(time.time() - read_t1)
-        log.logger.info("%f" % (time.time() - read_t1))
+        log.logger.info("%f" % (time.time() - read_t1))  # 标注结束
 
         ################ 批量入库 ################
         if len(TrackContentList) > 0:  # 只有有人，才进行入库，保存等操作
