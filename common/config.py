@@ -50,11 +50,11 @@ goods_types = ['backpack', 'cell phone', 'umbrella', 'handbag', 'pushcart', 'tru
 # 人头的置信度下限
 person_types_threahold=0.6    # 只有大于等于该置信度的才能认为是人头
 
-# 保存路径
-normal_save_path = "D:/monitor_images/" + ip + "/normal_images/"
-evade_save_path = "D:/monitor_images/" + ip + "/evade_images/"
-evade_origin_save_path= "D:/monitor_images/" + ip + "/evade_origin_images/"    # 保存检出逃票的原图
-evade_video_path = "D:/monitor_images/" + ip + "/evade_video/"    # 逃票图片的前后视频
+# 保存路径（按ip+appid区分）
+normal_save_path = "D:/monitor_images/" + ip + appid + "/normal_images/"
+evade_save_path = "D:/monitor_images/" + ip  + appid + "/evade_images/"
+evade_origin_save_path= "D:/monitor_images/" + ip + appid + "/evade_origin_images/"    # 保存检出逃票的原图
+evade_video_path = "D:/monitor_images/" + ip + appid + "/evade_video/"    # 逃票图片的前后视频
 
 if os.path.exists(normal_save_path) is False:
     os.makedirs(normal_save_path)
