@@ -22,7 +22,7 @@ appid = "c90d7f6e"
 
 
 # 图像大小
-# image_size = "1920x1080"
+image_shape = "1920x1080"
 image_size = (640, 360)    # 图片大小
 
 # 图像有效区域比例，以中心点算

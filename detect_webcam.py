@@ -101,10 +101,10 @@ def capture_thread(input_webcam, frame_buffer, lock, imgCacheList, md5List):
         cv2.waitKey(25)    # delay 25ms
 
 def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
-    # 准备FTP服务器
-    my_ftp = MyFTP(ftp_ip)
-    # my_ftp.set_pasv(False)
-    my_ftp.login(ftp_username, ftp_password)
+    # # 准备FTP服务器
+    # my_ftp = MyFTP(ftp_ip)
+    # # my_ftp.set_pasv(False)
+    # my_ftp.login(ftp_username, ftp_password)
 
     use_cuda = torch.cuda.is_available()    # 是否用cuda
     curr_person_id = getMaxPersonID()       # 目前最大人物ID

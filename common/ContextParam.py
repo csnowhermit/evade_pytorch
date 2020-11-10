@@ -1,5 +1,5 @@
 import os
-from common.config import cursor, ip, log
+from common.config import cursor, ip, image_shape, log
 from common.entity import CapLocation
 
 
@@ -16,9 +16,9 @@ def getContextParam():
             select ip, gate_num, direction, default_direct, entrance,
                    entrance_direct, entrance_gate_num, displacement,
                    passway_area, gate_area, gate_light_area 
-            from cap_location where is_enabled='y' and ip='%s' 
+            from cap_location where current_image_shape='%s' and ip='%s' 
             order by gate_num asc
-    ''' %  (ip)
+    ''' %  (image_shape, ip)
     cursor.execute(sql)
     results = cursor.fetchall()
 
