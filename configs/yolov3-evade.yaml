@@ -1,6 +1,6 @@
 YOLOV3:
   CFG: "./detector/YOLOv3/cfg/yolov3-evade.cfg"
-  WEIGHT: "./detector/YOLOv3/weight/yolov3-evade.weights"
+  WEIGHT: "./detector/YOLOv3/weight/normal_last.pt"
   CLASS_NAMES: "./detector/YOLOv3/cfg/evade.names"
 
   SCORE_THRESH: 0.3
