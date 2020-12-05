@@ -1,5 +1,5 @@
 import os
-from common.config import person_types, goods_types, log, image_size, effective_area_rate, person_types_threahold
+from common.config import person_types, goods_types, log, image_size, effective_area_rate, person_types_threahold, child_correct_line2
 from common.person_nms import calc_special_nms
 
 '''
@@ -19,6 +19,8 @@ def cleaning_box(bbox_xyxy, cls_conf, cls_ids, class_names):
     other_boxs = []
     other_scores = []
 
+    passway_area2 = (image_size[0] * child_correct_line2[0], image_size[0] * child_correct_line2[1])    # 2号通道小孩的认定范围（按人物框最右侧算）
+
     # 1.按需做框格式的转换
     for (xyxy, score, id) in zip(bbox_xyxy, cls_conf, cls_ids):
         predicted_class = class_names[id]    # 类别
@@ -30,8 +32,16 @@ def cleaning_box(bbox_xyxy, cls_conf, cls_ids, class_names):
             # if True:
             if is_effective(xyxy) is True:  # 只有在有效范围内，才算数
                 if score >= person_types_threahold:  # 只有大于置信度的，才能视为人头
-                    special_classes.append(predicted_class)
                     left, top, right, bottom = xyxy
+
+                    # 1.对1号通道做小孩/大人的人物框面积做过滤
+
+                    # 2.对2号通道做小孩认定区域的过滤
+                    if right >= passway_area2[0] and right <= passway_area2[1]:    # 人头最右侧在2号通道的小孩认定区域内
+                        special_classes.append("child")    # 认为是小孩
+                    else:
+                        special_classes.append(predicted_class)    # 否则，该是啥就是啥
+
                     special_boxs.append([left, top, right, bottom])  # 左上右下，经过calc_special_nms()才转为 左上宽高
                     special_scores.append(score)
         elif predicted_class in goods_types:  # 随身物品，直接算
@@ -61,11 +71,16 @@ def cleaning_box(bbox_xyxy, cls_conf, cls_ids, class_names):
     :return 返回有效区域：左上右下
 '''
 def get_effective_area():
-    center = (image_size[0]/2, image_size[1]/2)    # 中心点坐标
-    width = image_size[0] * effective_area_rate[0]    # 有效区域宽度
-    height = image_size[1] * effective_area_rate[1]    # 有效区域高度
+    # # center = (image_size[0]/2, image_size[1]/2)    # 中心点坐标
+    # # width = image_size[0] * effective_area_rate[0]    # 有效区域宽度
+    # # height = image_size[1] * effective_area_rate[1]    # 有效区域高度
+    #
+    # return (int(center[0] - width / 2), int(center[1] - height / 2), int(center[0] + width / 2), int(center[1] + height / 2))
+    # 只算指定区域的
+    # (1920*0, 1080*0.17, 1920*1, 1080*0.78)
+    return (int(image_size[0] * effective_area_rate[0]), int(image_size[1] * effective_area_rate[1]),
+            int(image_size[0] * effective_area_rate[2]), int(image_size[1] * effective_area_rate[3]))
 
-    return (int(center[0] - width / 2), int(center[1] - height / 2), int(center[0] + width / 2), int(center[1] + height / 2))
 
 
 '''

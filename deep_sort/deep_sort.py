@@ -58,7 +58,7 @@ class DeepSort(object):
         做追踪器的预测及更新:
         :param ori_img 原图
         :param 大人：类别、框（左上宽高）、置信度
-                小孩：类别、框（左上宽高）、置信度
+               小孩：类别、框（左上宽高）、置信度
     '''
     def update(self, ori_img, adult_classes, adult_boxs, adult_scores, child_classes, child_boxs, child_scores):
         self.height, self.width = ori_img.shape[:2]

@@ -2,7 +2,7 @@ import os
 import math
 import numpy as np
 from collections import Counter
-from common.config import up_distance_rate, down_distance_rate, log, adult_types
+from common.config import up_distance_rate, down_distance_rate, log, adult_types, image_size
 from common.ContextParam import getContextParam
 from common.entity import TrackContent
 
@@ -26,10 +26,12 @@ gate_light_area_list = [[capLocation.gate_light_area.left,
                          capLocation.gate_light_area.top,
                          capLocation.gate_light_area.right,
                          capLocation.gate_light_area.bottom] for capLocation in capLocationList]    # 闸机灯区域序列
+gate_default_displacement_list = [capLocation.displacement for capLocation in capLocationList]    # 闸机位移方向列表
 
 # print("passway_area_list:", passway_area_list)
 # print("gate_area_list:", gate_area_list)
 # print("gate_light_area_list:", gate_light_area_list)
+# print("gate_default_displacement_list:", gate_default_displacement_list)
 
 '''
     拿到指定通道的默认方向
@@ -48,9 +50,14 @@ def getDefaultDirection(gate_num):
     :param other_boxs 其他类别框，上左下右
     :param other_scores 其他类别的得分值
     :param height 图像的高
+    :param personForwardDict {personid: 方向}
+    :param personBoxDict {person_id: box左上右下}
+    :param personLocaDict {personid: 位置}
+    :param personIsCrossLine {personid: 是否过线}
     :return flag, TrackContentList 通行状态，新的追踪人的内容
 '''
-def evade_vote(tracks, other_classes, other_boxs, other_scores, height):
+def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personForwardDict, personBoxDict,
+                                                    personLocaDict, personIsCrossLine):
     TrackContentList = []    # 追踪人的内容，新增闸机编号和通过状态，过滤掉不在有效闸机通道的人员
     flag = "NORMAL"    # 默认该帧图片的通行状态为NORMAL，遇到有逃票时改为WARNING
     up_distance_threshold = height * up_distance_rate
@@ -63,11 +70,14 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height):
                int(track.to_tlbr()[2]),
                int(track.to_tlbr()[3])] for track in tracks]  # 所有人的人物框
     classes = [track.classes for track in tracks]    # 所有人的类别
+    personidArr = [track.track_id for track in tracks]    # 所有人的id
 
     print("人物框序列bboxes：%s" % bboxes)
     print("人物类型序列classes：%s" % classes)
+    print("人物ID序列personidArr：%s" % personidArr)
     log.logger.info("人物框序列bboxes：%s" % bboxes)
     log.logger.info("人物类型序列classes：%s" % classes)
+    log.logger.info("人物ID序列personidArr：%s" % personidArr)
 
     if len(bboxes) < 1:
         flag = "NOBODY"
@@ -154,16 +164,14 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height):
 
         for passway in passwayPersonDict.keys():    # 逐个处理每一个通道的多人情况
             personList = passwayPersonDict[passway]    # 拿到该通道内的所有人在bboxes中的序列，passway为通道编号
-            suspicion_evade_boxes = []  # 同一通道里的所有人框
-            suspicion_evade_classes = []    # 同一通道里的所有人类别
+            default_displacement = gate_default_displacement_list[passway]    # 该通道的画面位移
 
-            for person_index in personList:    # 逐个分别处理每个通道的情况，而不是所有通道一起处理
-                suspicion_evade_boxes.append(bboxes[person_index])
-                suspicion_evade_classes.append(classes[person_index])
+            suspicion_evade_boxes = [bboxes[person_index] for person_index in personList]  # 同一通道里的所有人框
+            suspicion_evade_classes = [classes[person_index] for person_index in personList]    # 同一通道里的所有人类别
+            suspicion_evade_personIds = [personidArr[person_index] for person_index in personList]  # 同一通道里的所有人id
 
-            print("通道 %s：人物框：%s，人物类别：%s" % (passway, suspicion_evade_boxes, suspicion_evade_classes))
-            log.logger.info("通道 %s：人物框：%s，人物类别：%s" % (passway, suspicion_evade_boxes, suspicion_evade_classes))
-
+            print("通道 %s：人物框：%s，人物类别：%s, 人物ID：%s" % (passway, suspicion_evade_boxes, suspicion_evade_classes, suspicion_evade_personIds))
+            log.logger.info("通道 %s：人物框：%s，人物类别：%s, 人物ID：%s" % (passway, suspicion_evade_boxes, suspicion_evade_classes, suspicion_evade_personIds))
             ## 2.3、计算两两之间的距离，通过次距离判断是否属于逃票，center跟suspicion_evade_boxes平级，只是保存坐标点位不同
             center = [[abs(left) + (abs(right)- abs(left)) / 2,
                        abs(top) + (abs(bottom) -abs(top)) / 2] for (left, top, right, bottom) in suspicion_evade_boxes]
@@ -172,7 +180,7 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height):
             delivery_index_list = []    # 隔闸机递东西的序号：在原始bboxes中的序号
             block_index_list = []       # 阻碍通行：闸机门关，多人在闸机同一侧
 
-            for i in range(len(center)):    # 每个通道，两两人之间计算距离
+            for i in range(len(center)):    # 每个通道，两两人之间计算距离（i，j表示人在每个通道内的序列）
                 for j in range(i + 1, len(center)):
                     person1x, person1y = center[i][0], center[i][1]
                     person2x, person2y = center[j][0], center[j][1]
@@ -223,24 +231,65 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height):
                                 block_index_list.append(index1)
                                 block_index_list.append(index2)
                             else:    # 这里是涉嫌逃票
-                                suspicion1 = suspicion_evade_boxes[center.index(center[i])]  # 嫌疑人1
-                                suspicion2 = suspicion_evade_boxes[center.index(center[j])]  # 嫌疑人2
-                                print("通道 %s: %s %s %s %s 涉嫌逃票, distance: %f" % (
-                                    passway, suspicion_evade_classes[i], suspicion1, suspicion_evade_classes[j],
-                                    suspicion2, distance))  # [0, 0, 1, 2] [1, 1, 2, 2] 涉嫌逃票
-                                log.logger.warn("通道 %s: %s %s %s %s 涉嫌逃票, distance: %f" % (
-                                    passway, suspicion_evade_classes[i], suspicion1, suspicion_evade_classes[j],
-                                    suspicion2, distance))
+                                suspicion1 = suspicion_evade_boxes[center.index(center[i])], suspicion_evade_personIds[center.index(center[i])]  # 嫌疑人1的box，id
+                                suspicion2 = suspicion_evade_boxes[center.index(center[j])], suspicion_evade_personIds[center.index(center[i])]  # 嫌疑人2的box，id
 
-                                index1 = bboxes.index(suspicion1)
-                                index2 = bboxes.index(suspicion2)
-                                print("涉嫌逃票-这两人真实全局序号：", index1, index2)  # 这两人真实序号： 0 2
-                                log.logger.warn("涉嫌逃票-这两人真实全局序号: %d %d" % (index1, index2))
-                                evade_index_list.append(index1)
-                                evade_index_list.append(index2)
+                                index1 = bboxes.index(suspicion1[0])    # 涉嫌逃票的两人的全局序号
+                                index2 = bboxes.index(suspicion2[0])
 
-                                flag = "WARNING"  # 检出有人逃票，该标识为WARNING
-                                log.logger.warn("检测到涉嫌逃票: %s" % flag)
+                                # 通道 2: adult [1632, 498, 1981, 758] adult [1634, 18, 1876, 158] 涉嫌逃票, distance: 540.000000
+                                fmtStr = '''
+                                            通道 %s: \n
+                                            \t\t 类型: %s 人物: %s \n
+                                            \t\t 类型: %s 人物: %s 涉嫌逃票 distance: %f \n
+                                            \t\t 这两人真实全局序号: %d %d
+                                        ''' % (passway,
+                                               suspicion_evade_classes[i], str(suspicion1),
+                                               suspicion_evade_classes[j], str(suspicion2), distance,
+                                               index1, index2)
+                                print(fmtStr)
+                                log.logger.info(fmtStr)
+
+                                person1_forward = personForwardDict[suspicion_evade_personIds[i]]    # 第1个人的方向
+                                person2_forward = personForwardDict[suspicion_evade_personIds[j]]    # 第2个人的方向
+
+                                # 1.如果两人方向一致，或任意一人是新来的
+                                if person1_forward == person2_forward or (person1_forward == "0" or person2_forward == "0"):
+                                    # 2.且后者过线，才认为是逃票
+                                    # debug,
+                                    # evade_following: 205.0
+                                    # center: [[1726.5, 205.0], [1664.0, 703.0]]
+                                    if default_displacement == "down":  # 向下走的，y轴坐标小的为尾随
+                                        evade_following_y = min(center[i][1], center[j][1])  # 这里是中心点坐标
+                                    else:
+                                        evade_following_y = max(center[i][1], center[j][1])
+
+                                    evade_following = [(center[i], i) for i in range(len(center)) if center[i][1] == evade_following_y][0]
+                                    print("evade_following:", type(evade_following), evade_following, evade_following_y)
+                                    print("center:", type(center), center)
+                                    # 尾随的人的box和id
+                                    suspicion_evade = suspicion_evade_boxes[center.index(evade_following[0])], suspicion_evade_personIds[center.index(evade_following[0])]
+
+                                    # 被尾随的
+                                    be_tailed = suspicion2 if suspicion_evade[1] == suspicion1[1] else suspicion1
+
+                                    if personIsCrossLine[suspicion_evade[1]] == "1":    # 尾随人过线，是逃票
+                                        print("逃票详情：")
+                                        print("逃票者：%s" % suspicion_evade)
+                                        print("被尾随：%s" % be_tailed)
+                                        log.logger.infolog.logger.info("逃票详情：")
+                                        log.logger.info("逃票者：%s" % suspicion_evade)
+                                        log.logger.info("被尾随：%s" % be_tailed)
+
+                                        evade_index_list.append(bboxes.index(suspicion_evade[0]))    # 只有逃票者会被记，被尾随的不会被记录
+
+                                        flag = "WARNING"  # 检出有人逃票，该标识为WARNING
+                                        log.logger.warn("检测到涉嫌逃票: %s" % flag)
+                                    else:
+                                        print("尾随者 %s 未过线，不认为逃票" % (str(suspicion_evade)))
+                                else:
+                                    print("两人方向不一致，不认为逃票：第%d人方向：%s，第%d人方向：%s" % (i, person1_forward,
+                                                                                                             j, person2_forward))
 
             # 更新每个人的通行状态
             for i in range(len(evade_index_list)):    # evade_index_list[i]为人在bboxes中的真实序号
@@ -409,3 +458,57 @@ def isDelivery(person1y, person2y, gate_status, gate_area):
             tag = "evade"
     return tag
 
+'''
+    判定每个人的方向，所在区域，及是否过界
+    :param trackList 追踪列表
+    :param personBoxDict 每个人的人物框：{person_id: box左上右下}
+    :param personForwardDict 每个人的方向状态：{personid: 方向}，0无方向（新人）；1向上；2向下；3丢失（出域）
+    :param personLocaDict 每个人的位置：{personid: 位置}，0图像上半截；1图像下半截
+    :param personIsCrossLine 每个人是否过线：{personid: 是否过线}，0没过线；1过线
+'''
+def judgeStatus(trackList, personForwardDict, personBoxDict, personLocaDict, personIsCrossLine):
+    curr_person_id_list = []
+    for track in trackList:
+        person_id = track.track_id  # 人的id
+        curr_person_id_list.append(person_id)
+        bbox = track.to_tlbr()  # 左上右下
+        left, top, right, bottom = bbox
+        centery = (top + bottom) / 2
+
+        # 先加新人
+        if person_id not in personForwardDict.keys():  # 如果该人第一次来
+            personForwardDict[person_id] = "0"  # 新来的
+            personBoxDict[person_id] = bbox
+            personLocaDict[person_id] = "0" if centery < image_size[1] / 2 else "1"  # 默认在上半图
+            personIsCrossLine[person_id] = "0"
+        else:
+            prev_forward = personForwardDict[person_id]  # 当前人上一帧的方向
+            prev_box = personBoxDict[person_id]  # 当前人上一帧的框
+            prev_loca = personLocaDict[person_id]  # 当前人上一帧的位置
+
+            prev_left, prev_top, prev_right, prev_bottom = prev_box
+            prev_centery = (prev_top + prev_bottom) / 2
+            if centery < prev_centery:  # 当前小于上一帧
+                personForwardDict[person_id] = 1  # 方向向上
+            else:
+                personForwardDict[person_id] = 2  # 方向向下
+            personBoxDict[person_id] = bbox
+            currLoca = "0" if centery < image_size[1] / 2 else "1"
+            personLocaDict[person_id] = currLoca
+            if currLoca == prev_loca:  # 当前位置和上一帧位置比较，相同则没过线，不同则过线
+                personIsCrossLine[person_id] = "0"
+            else:
+                personIsCrossLine[person_id] = "1"
+    # 再删旧人
+    del_pid_list = []  # 已出界的人
+    for pid in personForwardDict.keys():  # 出域的人方向标记为3，
+        if pid not in curr_person_id_list:
+            personForwardDict[pid] = "3"  # 先标记
+
+    # 再删除
+    for pid in del_pid_list:
+        del personForwardDict[pid]
+        del personBoxDict[pid]
+        del personLocaDict[pid]
+        del personIsCrossLine[pid]
+    return personForwardDict, personBoxDict, personLocaDict, personIsCrossLine

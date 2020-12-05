@@ -16,7 +16,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import colorsys
 from common.config import normal_save_path, evade_save_path, ip, log, image_size, rtsp_url, evade_origin_save_path, imgCacheSize, imgNearSize, evade_video_path, ftp_ip, ftp_username, ftp_password
-from common.evadeUtil import evade_vote
+from common.evadeUtil import evade_vote, judgeStatus
 from common.dateUtil import formatTimestamp
 from common.dbUtil import saveManyDetails2DB, getMaxPersonID, saveFTPLog2DB
 from common.Stack import Stack
@@ -60,6 +60,11 @@ def main(cfg, base_path):
                               size=np.floor(3e-2 * image_size[1] + 0.5).astype('int32'))  # 640*480
     thickness = (image_size[0] + image_size[1]) // 300
 
+    personBoxDict = {}  # 每个人的人物框：{person_id: box左上右下}
+    personForwardDict = {}  # 每个人的方向状态：{personid: 方向}，0无方向（新人）；1向上；2向下；3丢失（出域）
+    personLocaDict = {}  # 每个人的位置：{personid: 位置}，0图像上半截；1图像下半截
+    personIsCrossLine = {}  # 每个人是否过线：{personid: 是否过线}，0没过线；1过线
+
     for input_img in os.listdir(base_path):
         input_img = os.path.join(base_path, input_img)
         read_t1 = time.time()  # 读取动作开始
@@ -100,6 +105,14 @@ def main(cfg, base_path):
                                         len(trackList_child), [track.to_tlbr() for track in trackList_child]))
 
         trackList = trackList_adult + trackList_child
+
+        # 这里判定每个人的方向，及所在区域
+        personForwardDict, personBoxDict, personLocaDict, personIsCrossLine = judgeStatus(trackList,
+                                                                                          personForwardDict,
+                                                                                          personBoxDict,
+                                                                                          personLocaDict,
+                                                                                          personIsCrossLine)
+
         # 判定通行状态：0正常通过，1涉嫌逃票
         # print("frame.shape:", frame.shape)    # frame.shape: (480, 640, 3)
         flag, TrackContentList = evade_vote(trackList, other_classes, other_boxs, other_scores,

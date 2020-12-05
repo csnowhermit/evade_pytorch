@@ -25,8 +25,13 @@ appid = "c90d7f6e"
 image_shape = "1920x1080"
 image_size = (1920, 1080)    # 图片大小
 
-# 图像有效区域比例，以中心点算
-effective_area_rate = (1, 0.9)    # 宽，高。表示宽维度上所有都有效，高维度上由中心点算起，最中间的90%区域有效（即上下各有5%的留白区）
+# # 图像有效区域比例，以中心点算
+# effective_area_rate = (1, 0.9)    # 宽，高。表示宽维度上所有都有效，高维度上由中心点算起，最中间的90%区域有效（即上下各有5%的留白区）
+effective_area_rate = (0, 0.17, 1, 0.78)    # 真实有效区域：(1920*0, 1080*0.17, 1920*1, 1080*0.78)
+
+# 各个通道小孩过滤修正线
+child_correct_line2 = (0.76, 0.92)    # 表示2号闸机的小孩修正线（人头最右侧位于该区域内的，认为是小孩）
+
 
 # 数据库
 conn = pymysql.connect(host='127.0.0.1',
@@ -48,7 +53,7 @@ child_types = ['child']    # 小孩的表现类别
 goods_types = ['backpack', 'cell phone', 'umbrella', 'handbag', 'pushcart', 'trunk']    # 其他的表现类别
 
 # 人头的置信度下限
-person_types_threahold=0.6    # 只有大于等于该置信度的才能认为是人头
+person_types_threahold=0.62    # 只有大于等于该置信度的才能认为是人头
 
 # 保存路径（按ip+appid区分）
 normal_save_path = "D:/monitor_images/" + ip + appid + "/normal_images/"
