@@ -4,6 +4,11 @@ import time
 import math
 import threading
 import serial
+import sys
+sys.path.append("D:/workspace/workspace_python_evade_pytorch/")
+from common.dbUtil import saveDistanceInfo2DB
+from common.config import ip
+from common.dateUtil import formatTimestamp
 
 '''
     北醒激光雷达
@@ -19,6 +24,8 @@ data = ser.read()
 hexold = 0
 hexnew= 0
 
+this_gate = 0    # 当前所在闸机：0号闸机
+
 def update():
     #print("test3")
     global count
@@ -27,6 +34,7 @@ def update():
     global hexold,hexnew
     data=ser.read()
     hexnew = ord(data)
+    distance = 0
     if hexnew == 0x59 and hexold == 0x59:
         hexnew = 0
         hexold= 0
@@ -39,19 +47,22 @@ def update():
             totalnum +=1
             if distance <= 140:
                 havePeopleNum +=1
-                print("!!! 有人: %d" % distance)
+                ms_time = formatTimestamp(time.time(), format='%Y%m%d_%H%M%S', ms=True)
+                print("!!! 有人: %s %d" % (ms_time, distance))
+                saveDistanceInfo2DB(ip=ip, gate_num=this_gate, distance=distance)
             else:
                 noPeopleNum +=1
-                print("    无人: %d" % distance)
+                # ms_time = formatTimestamp(time.time(), format='%Y%m%d_%H%M%S', ms=True)
+                # print("    无人: %s %d" % (ms_time, distance))
     hexold = hexnew
-
-
+    return distance
 
 
 def Subfun():
     while True:
         update()
 
-t = threading.Thread(target=Subfun)
-t.start()
-# mainloop()
+
+if __name__ == '__main__':
+    t = threading.Thread(target=Subfun)
+    t.start()

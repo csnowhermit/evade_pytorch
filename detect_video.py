@@ -80,6 +80,7 @@ def main(input_path, output_path):
     count = 0
     while True:
         read_t1 = time.time()  # 读取动作开始
+        curr_time_path = formatTimestamp(read_t1, format='%Y%m%d_%H%M%S', ms=True)
 
         ret, frame = video_capture.read()  # frame shape (h, w, c) (1080, 1920, 3)
         if ret != True:
@@ -136,7 +137,7 @@ def main(input_path, output_path):
         # print("frame.shape:", frame.shape)    # frame.shape: (480, 640, 3)
         flag, TrackContentList = evade_vote(trackList, other_classes, other_boxs, other_scores,
                                             frame.shape[0], personForwardDict, personBoxDict,
-                                                    personLocaDict, personIsCrossLine)  # frame.shape, (h, w, c)
+                                                    personLocaDict, personIsCrossLine, curr_time_path)  # frame.shape, (h, w, c)
 
         detect_time = time.time() - detect_t1  # 检测动作结束
 
@@ -215,7 +216,6 @@ def main(input_path, output_path):
         ################ 批量入库 ################
         if len(TrackContentList) > 0:  # 只有有人，才进行入库，保存等操作
             curr_time = formatTimestamp(read_t1, ms=True)  # 当前时间按读取时间算，精确到毫秒
-            curr_time_path = formatTimestamp(read_t1, format='%Y%m%d_%H%M%S', ms=True)
             curr_date = formatTimestamp(read_t1, format='%Y%m%d')
 
             normal_time_path = normal_save_path + curr_date + "/"  # 正常图片，按天分目录

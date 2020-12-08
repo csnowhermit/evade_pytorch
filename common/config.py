@@ -34,6 +34,10 @@ head_filter_area_rate = (0.36, 0.17, 0.7, 0.78)    # 真实有效区域：(1920*
 # 人头面积过滤阀值
 head_area_filter_ratio = 0.03
 
+# 小孩身高过滤（单位：cm）
+total_height = 270
+child_height_thres = 130    # 这里是免票小孩的身高，而不是头顶到设备的距离
+
 # 通道2小孩过滤修正线
 child_correct_line2 = (0.76, 0.93)    # 表示2号闸机的小孩修正线（人头最右侧位于该区域内的，认为是小孩）
 
@@ -49,6 +53,7 @@ cursor = conn.cursor()
 
 table_name = "details_%s" % (ip.replace(".", "_"))    # 表名：正常+逃票
 evade_table_name = "evade_details"    # 逃票表（所有摄像头都存一张表）
+
 
 # 需特殊处理的类别
 person_types = ['adult', 'person', 'child']

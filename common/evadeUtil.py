@@ -1,10 +1,13 @@
 import os
 import math
 import numpy as np
+import pandas as pd
 from collections import Counter
-from common.config import up_distance_rate, down_distance_rate, log, adult_types, image_size
+from common.config import up_distance_rate, down_distance_rate, log, adult_types, image_size, total_height, child_height_thres
 from common.ContextParam import getContextParam
 from common.entity import TrackContent
+from common.dbUtil import getDistanceByTime
+from common.dateUtil import datetime_add
 
 '''
     逃票检测工具类
@@ -54,10 +57,11 @@ def getDefaultDirection(gate_num):
     :param personBoxDict {person_id: box左上右下}
     :param personLocaDict {personid: 位置}
     :param personIsCrossLine {personid: 是否过线}
+    :param curr_time 当前时间
     :return flag, TrackContentList 通行状态，新的追踪人的内容
 '''
 def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personForwardDict, personBoxDict,
-                                                    personLocaDict, personIsCrossLine):
+                                                    personLocaDict, personIsCrossLine, curr_time):
     TrackContentList = []    # 追踪人的内容，新增闸机编号和通过状态，过滤掉不在有效闸机通道的人员
     flag = "NORMAL"    # 默认该帧图片的通行状态为NORMAL，遇到有逃票时改为WARNING
     up_distance_threshold = height * up_distance_rate
@@ -285,17 +289,26 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
                                     # # 尾随人过线判断：该逻辑不能用。原因：当逃票者过线时，被尾随者已经走出通道，这时通道内仍只有一个人（是逃票者）
                                     # if personIsCrossLine[suspicion_evade[1]] == "1":    # 尾随人过线，是逃票
                                     if gate_light_status_list[passway] == "redLight":    # 此处用红灯预警替代
-                                        print("逃票详情：")
-                                        print("逃票者：%s" % str(suspicion_evade))
-                                        print("被尾随：%s" % str(be_tailed))
-                                        log.logger.info("逃票详情：")
-                                        log.logger.info("逃票者：%s" % str(suspicion_evade))
-                                        log.logger.info("被尾随：%s" % str(be_tailed))
+                                        # eeeeeeeeeeeeeeeeee
+                                        # 这是再加身高的判断因素
+                                        distance = getNearestDistance(passway, curr_time)    # 此距离为设备到头顶的距离
+                                        person_height = total_height - distance    # 通过的人的身高
+                                        if person_height > child_height_thres or person_height == 0:    # 有身高，且大于小孩
+                                            print("逃票详情：")
+                                            print("逃票者：%s" % str(suspicion_evade))
+                                            print("被尾随：%s" % str(be_tailed))
+                                            log.logger.info("逃票详情：")
+                                            log.logger.info("逃票者：%s" % str(suspicion_evade))
+                                            log.logger.info("被尾随：%s" % str(be_tailed))
 
-                                        evade_index_list.append(bboxes.index(suspicion_evade[0]))    # 只有逃票者会被记，被尾随的不会被记录
+                                            evade_index_list.append(
+                                                bboxes.index(suspicion_evade[0]))  # 只有逃票者会被记，被尾随的不会被记录
 
-                                        flag = "WARNING"  # 检出有人逃票，该标识为WARNING
-                                        log.logger.warn("检测到涉嫌逃票: %s" % flag)
+                                            flag = "WARNING"  # 检出有人逃票，该标识为WARNING
+                                            log.logger.warn("检测到涉嫌逃票: %s" % flag)
+                                        else:
+                                            print("身高不足以购票: %f, 不认为是逃票" % (person_height))
+                                            log.logger.info("身高不足以购票: %f, 不认为是逃票" % (person_height))
                                     else:
                                         print("尾随者 %s 未过线，不认为逃票" % (str(suspicion_evade)))
                                 else:
@@ -518,8 +531,8 @@ def judgeStatus(trackList, personForwardDict, personBoxDict, personLocaDict, per
             del_pid_list.append(pid)
 
     # print("curr_person_id_list: %s" % (str(curr_person_id_list)))
-    print("正在删除出界的人：%s" % (str(pid)))
-    log.logger.info("正在删除出界的人：%s" % (str(pid)))
+    print("正在删除出界的人：%s" % (str(del_pid_list)))
+    log.logger.info("正在删除出界的人：%s" % (str(del_pid_list)))
     # 再删除
     for pid in del_pid_list:
         # print("正在删除出界的人：%s %s" % (type(pid), pid))
@@ -528,3 +541,36 @@ def judgeStatus(trackList, personForwardDict, personBoxDict, personLocaDict, per
         del personLocaDict[pid]
         del personIsCrossLine[pid]
     return personForwardDict, personBoxDict, personLocaDict, personIsCrossLine
+
+'''
+    获取最近时间的距离
+    :param gate_num 闸机编号
+    :param curr_time 当前时间，字符串类型："%Y%m%d_%H%M%S.%f"
+    :return 返回离指定时间最近的距离
+'''
+def getNearestDistance(gate_num, curr_time):
+    start_time = datetime_add(curr_time, s=-1)
+    end_time = datetime_add(curr_time, s=1)
+    df = getDistanceByTime(gate_num, start_time, end_time)    # 拿到近几秒的距离，df格式
+    print("找到距离数据：\n%s" % df)
+    log.logger.info("找到距离数据：\n%s" % df)
+
+    if df.empty is True:    # 如果没查到值，直接返回0
+        return 0
+    else:
+        df = df.dropna()
+        df['spec_time'] = curr_time
+        df['ms_time_stamp'] = pd.to_datetime(df['ms_time'], format="%Y%m%d_%H%M%S.%f")    # 先做成datetime格式的
+        df['spec_time_stamp'] = pd.to_datetime(df['spec_time'], format="%Y%m%d_%H%M%S.%f")
+
+        # 再做成long型时间戳进行计算
+        df['ms_time_stamp'] = (df['ms_time_stamp'] - np.datetime64('1970-01-01T08:00:00Z')) / np.timedelta64(1, 'ms')
+        df['spec_time_stamp'] = (df['spec_time_stamp'] - np.datetime64('1970-01-01T08:00:00Z')) / np.timedelta64(1, 'ms')
+
+        df['ms_interval'] = (df['spec_time_stamp'] - df['ms_time_stamp']).abs()    # 计算时间间距
+
+        # 最后返回最小时间间距所对应的距离值
+        result = df[df['ms_interval'] == df['ms_interval'].min()]['distance']
+        return result.values[0]
+
+

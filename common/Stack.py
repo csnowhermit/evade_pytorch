@@ -16,6 +16,11 @@ class Stack:
     def pop(self):
         return self.items.pop()
 
+    def get(self, i=0):
+        f = self.items[i]
+        self.items.remove(self.items[i])
+        return f
+
     def peek(self):
         if not self.isEmpty():
             return self.items[len(self.items) - 1]

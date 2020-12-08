@@ -32,15 +32,43 @@ from deep_sort import build_tracker
 
 warnings.filterwarnings('ignore')
 
+'''
+    本地视频模拟视频流
+'''
+def capture_video(video_path, frame_buffer, lock, imgCacheList, cacheLock):
+    count = 0    # 标记当前帧数
+
+    vid = cv2.VideoCapture(video_path)
+    if not vid.isOpened():
+        raise IOError("Couldn't open webcam or video")
+
+    while True:
+        return_value, frame = vid.read()
+        read_time = time.time()  # 读取时间
+        if return_value is True:
+            if count % 2 == 0:  # 表示每2帧接入一帧
+                count = 0
+                lock.acquire()
+                frame_buffer.push((read_time, frame))  # 用于跳帧识别的缓存
+                lock.release()
+        cacheLock.acquire()
+        imgCacheList.append((read_time, frame))    # 用于合成视频
+        if len(imgCacheList) > imgCacheSize:  # 如果超长，则删除最前面的
+            imgCacheList.remove(imgCacheList[0])
+        cacheLock.release()
+        time.sleep(0.1)
+
+        cv2.waitKey(25)    # delay 25ms
 
 '''
     视频流读取线程：读取到自定义缓冲区
 '''
-def capture_thread(input_webcam, frame_buffer, lock, imgCacheList, md5List):
+def capture_thread(input_webcam, frame_buffer, lock, imgCacheList, cacheLock):
     if input_webcam == "0":
         input_webcam = int(0)
     print("capture_thread start: %s" % (input_webcam))
     log.logger.info("capture_thread start: %s" % (input_webcam))
+    count = 0    # 标记当前帧数
 
     # vid = cv2.VideoCapture(input_webcam)
     # if not vid.isOpened():
@@ -77,8 +105,16 @@ def capture_thread(input_webcam, frame_buffer, lock, imgCacheList, md5List):
             vid = cv2.VideoCapture(input_webcam)
             print("读取失败, 已重连: %s" % (vid))
             log.logger.error("读取失败, 已重连: %s" % (vid))
-        lock.acquire()
-        frame_buffer.push(frame)    # 用于跳帧识别的缓存
+
+        if count %2 == 0:    # 表示每2帧接入一帧
+            count = 0
+            lock.acquire()
+            read_time = time.time()  # 读取时间
+            frame_buffer.push((read_time, frame))  # 用于跳帧识别的缓存
+            lock.release()
+        time.sleep(0.5)
+
+
 
         # try:
         #     imgCacheList.append(frame)  # 用来生成截取视频的缓存
@@ -97,10 +133,10 @@ def capture_thread(input_webcam, frame_buffer, lock, imgCacheList, md5List):
         #     log.logger.error("视频序列准备失败: %s" % (traceback.format_exc()))
         #     pass
 
-        lock.release()
+
         cv2.waitKey(25)    # delay 25ms
 
-def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
+def detect_thread(cfg, frame_buffer, lock, imgCacheList, cacheLock):
     # # 准备FTP服务器
     # my_ftp = MyFTP(ftp_ip)
     # # my_ftp.set_pasv(False)
@@ -138,14 +174,16 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
             if frame_buffer.size() > 0:
                 read_t1 = time.time()  # 读取动作开始
                 lock.acquire()
-                frame = frame_buffer.pop()  # 每次拿最新的
+                curr_timestamp, frame = frame_buffer.get()  # 按序拿
                 frame_buffer.clear()        # 拿完之后清空缓冲区，避免短期采集线程拿不到数据帧而导致识别线程倒退识别
                 lock.release()
 
-                print("=================== start a image reco %s ===================" % (formatTimestamp(time.time(), ms=True)))
-                log.logger.info("=================== start a image reco %s ===================" % (formatTimestamp(time.time(), ms=True)))
+                print("=================== start a image reco %s ===================" % (formatTimestamp(curr_timestamp, ms=True)))
+                log.logger.info("=================== start a image reco %s ===================" % (formatTimestamp(curr_timestamp, ms=True)))
 
                 read_time = time.time() - read_t1  # 读取动作结束
+                curr_time_path = formatTimestamp(curr_timestamp, format='%Y%m%d_%H%M%S', ms=True)
+
                 detect_t1 = time.time()  # 检测动作开始
 
                 # 先做检测
@@ -188,11 +226,12 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
                 # print("frame.shape:", frame.shape)    # frame.shape: (480, 640, 3)
                 flag, TrackContentList = evade_vote(trackList, other_classes, other_boxs, other_scores,
                                                     frame.shape[0], personForwardDict, personBoxDict,
-                                                    personLocaDict, personIsCrossLine)  # frame.shape, (h, w, c)
+                                                    personLocaDict, personIsCrossLine, curr_time_path)  # frame.shape, (h, w, c)
 
                 detect_time = time.time() - detect_t1  # 检测动作结束
 
-                if flag == "WARNING":
+                # if flag == "WARNING":
+                if True:
                     # 标注（只对逃票情况做标注，正常情况不标注了）
                     # image = Image.fromarray(frame)  # 这里不用再转：已经是rgb了
                     image = Image.fromarray(frame[..., ::-1])  # bgr to rgb，转成RGB格式进行做标注
@@ -265,9 +304,8 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
 
                 ################ 批量入库 ################
                 if len(TrackContentList) > 0:  # 只有有人，才进行入库，保存等操作
-                    curr_time = formatTimestamp(read_t1, ms=True)  # 当前时间按读取时间算，精确到毫秒
-                    curr_time_path = formatTimestamp(read_t1, format='%Y%m%d_%H%M%S', ms=True)
-                    curr_date = formatTimestamp(read_t1, format='%Y%m%d')
+                    curr_time = formatTimestamp(curr_timestamp, ms=True)  # 当前时间按读取时间算，精确到毫秒
+                    curr_date = formatTimestamp(curr_timestamp, format='%Y%m%d')
 
                     normal_time_path = normal_save_path + curr_date + "/"  # 正常图片，按天分目录
                     evade_time_path = evade_save_path + curr_date + "/"  # 逃票图片，标注后
@@ -286,29 +324,10 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
 
                     if flag == "NORMAL":  # 正常情况（20201029更新：正常情况和逃票小视频不保存了）
                         savefile = os.path.join(normal_time_path, ip + "_" + curr_time_path + ".jpg")
-                        # status = cv2.imwrite(filename=savefile, img=result)  # cv2.imwrite()保存文件，路径不能有2个及以上冒号
-                        status = False
+                        status = cv2.imwrite(filename=savefile, img=result)  # cv2.imwrite()保存文件，路径不能有2个及以上冒号
+                        # status = False
                         print("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
                         log.logger.info("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
-
-                        # ftp_retry = 0
-                        # while True:
-                        #     # 拼接ftp服务器的目录
-                        #     ftp_path = savefile[17: savefile.rindex("/") + 1]
-                        #     ftp_file = ftp_path + savefile[savefile.rindex("/") + 1:]
-                        #     my_ftp.create_ftp_path(ftp_path)
-                        #     my_ftp.upload_file(savefile, ftp_file)
-                        #
-                        #     isSame = my_ftp.is_same_size(savefile, ftp_file)
-                        #     if isSame == 1:  # 上传成功
-                        #         saveFTPLog2DB(savefile, ftp_file, isSame)  # 保存每个文件的上传记录
-                        #         break
-                        #     else:
-                        #         saveFTPLog2DB(savefile, ftp_file, isSame)  # 上传失败的也保存日志
-                        #         time.sleep(3)  # 上传失败后稍作延时重试
-                        #         ftp_retry += 1
-                        #         if ftp_retry > 3:    # 上传ftp，重试3次
-                        #             break
                     elif flag == "WARNING":  # 逃票情况
                         savefile = os.path.join(evade_time_path, ip + "_" + curr_time_path + ".jpg")
                         status = cv2.imwrite(filename=savefile, img=result)
@@ -322,93 +341,35 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, md5List):
                         log.logger.warn("时间: %s, 状态: %s, 原始文件: %s, 保存状态: %s, 检后文件: %s, 保存状态: %s" % (
                             curr_time_path, flag, originfile, status2, savefile, status))
 
-                        # ftp_retry = 0
-                        # while True:    # 上传标注过的图片
-                        #     # 拼接ftp服务器的目录
-                        #     ftp_path = savefile[17: savefile.rindex("/") + 1]
-                        #     ftp_file = ftp_path + savefile[savefile.rindex("/") + 1:]
-                        #     my_ftp.create_ftp_path(ftp_path)
-                        #     my_ftp.upload_file(savefile, ftp_file)
-                        #
-                        #     isSame = my_ftp.is_same_size(savefile, ftp_file)
-                        #     if isSame == 1:  # 上传成功
-                        #         saveFTPLog2DB(savefile, ftp_file, isSame)  # 保存每个文件的上传记录
-                        #         break
-                        #     else:
-                        #         saveFTPLog2DB(savefile, ftp_file, isSame)  # 上传失败的也保存日志
-                        #         time.sleep(3)  # 上传失败后稍作延时重试
-                        #         ftp_retry += 1
-                        #         if ftp_retry > 3:  # 上传ftp，重试3次
-                        #             break
-                        #
-                        # ftp_retry = 0
-                        # while True:    # 上传原始图片
-                        #     # 拼接ftp服务器的目录
-                        #     ftp_path = originfile[17: originfile.rindex("/") + 1]
-                        #     ftp_file = ftp_path + originfile[originfile.rindex("/") + 1:]
-                        #     my_ftp.create_ftp_path(ftp_path)
-                        #     my_ftp.upload_file(originfile, ftp_file)
-                        #
-                        #     isSame = my_ftp.is_same_size(originfile, ftp_file)
-                        #     if isSame == 1:  # 上传成功
-                        #         saveFTPLog2DB(originfile, ftp_file, isSame)  # 保存每个文件的上传记录
-                        #         break
-                        #     else:
-                        #         saveFTPLog2DB(originfile, ftp_file, isSame)  # 上传失败的也保存日志
-                        #         time.sleep(3)  # 上传失败后稍作延时重试
-                        #         ftp_retry += 1
-                        #         if ftp_retry > 3:  # 上传ftp，重试3次
-                        #             break
-                        # # 开始拼接视频（视频不拼接了，放到后端 录制+截取）
-                        # lock.acquire()
-                        # try:
-                        #     # index = imgCacheList.index(frame)    # 找到当前图片的所属下标
-                        #     sign = hashlib.md5(frame).hexdigest()
-                        #     index = md5List.index(sign)  # 用md5值匹配找图
-                        #
-                        #     start = max(0, index - imgNearSize)
-                        #     end = min(len(imgCacheList), index + imgNearSize)
-                        #     tmp = imgCacheList[start: end]
-                        #     lock.release()
-                        #
-                        #     video_FourCC = 875967080
-                        #     video_fps = 25
-                        #     video_size = (frame.shape[1], frame.shape[0])
-                        #     video_file = os.path.join(evade_video_time_path, ip + "_" + curr_time_path + ".mp4")
-                        #
-                        #     out = cv2.VideoWriter(video_file, video_FourCC, video_fps, video_size)
-                        #     for t in tmp:
-                        #         out.write(t)
-                        #     out.release()
-                        #
-                        #     print("视频保存完成: %s" % (video_file))
-                        #     log.logger.info("视频保存完成: %s" % (video_file))
-                        #
-                        #     ftp_retry = 0
-                        #     while True:  # 保存上下文视频
-                        #         # 拼接ftp服务器的目录
-                        #         ftp_path = originfile[17: video_file.rindex("/") + 1]
-                        #         ftp_file = ftp_path + originfile[video_file.rindex("/") + 1:]
-                        #         my_ftp.create_ftp_path(ftp_path)
-                        #         my_ftp.upload_file(video_file, ftp_file)
-                        #
-                        #         isSame = my_ftp.is_same_size(video_file, ftp_file)
-                        #         if isSame == 1:  # 上传成功
-                        #             saveFTPLog2DB(video_file, ftp_file, isSame)  # 保存每个文件的上传记录
-                        #             break
-                        #         else:
-                        #             saveFTPLog2DB(video_file, ftp_file, isSame)  # 上传失败的也保存日志
-                        #             time.sleep(3)  # 上传失败后稍作延时重试
-                        #             ftp_retry += 1
-                        #             if ftp_retry > 3:  # 上传ftp，重试3次
-                        #                 break
-                        # except ValueError as e:
-                        #     lock.release()
-                        #     print("当前图片不存在于缓存中: %s" % (traceback.format_exc()))
-                        #     log.logger.error("当前图片不存在于缓存中: %s" % (traceback.format_exc()))
-                        #
-                        # print("视频保存完成: %s" % (video_file))
-                        # log.logger.info("视频保存完成: %s" % (video_file))
+                        # 开始拼接视频（视频不拼接了，放到后端 录制+截取）
+                        try:
+                            cacheLock.acquire()
+
+                            index = [i for i in range(len(imgCacheList)) if imgCacheList[i][0]==curr_timestamp][0]    # 拿到当前下标
+                            start = max(0, index - imgNearSize)
+                            end = min(len(imgCacheList), index + imgNearSize)
+                            tmp = imgCacheList[start: end]
+                            cacheLock.release()
+
+                            video_FourCC = 875967080
+                            video_fps = 25
+                            video_size = (frame.shape[1], frame.shape[0])
+                            video_file = os.path.join(evade_video_time_path, ip + "_" + curr_time_path + ".mp4")
+
+                            out = cv2.VideoWriter(video_file, video_FourCC, video_fps, video_size)
+                            for t in tmp:
+                                out.write(t[1])
+                            out.release()
+
+                            print("视频保存完成: %s %s %s %s" % (video_file, start, index, end))
+                            log.logger.info("视频保存完成: %s %s %s %s" % (video_file, start, index, end))
+                        except ValueError as e:
+                            cacheLock.release()
+                            print("当前图片不存在于缓存中: %s" % (traceback.format_exc()))
+                            log.logger.error("当前图片不存在于缓存中: %s" % (traceback.format_exc()))
+
+                        print("视频保存完成: %s" % (video_file))
+                        log.logger.info("视频保存完成: %s" % (video_file))
                     else:  # 没人的情况
                         print("时间: %s, 状态: %s" % (curr_time_path, flag))
                         log.logger.info("时间: %s, 状态: %s" % (curr_time_path, flag))
@@ -449,13 +410,16 @@ if __name__ == '__main__':
 
     # 自定义识别缓冲区
     frame_buffer = Stack(30 * 5)
-    lock = threading.RLock()
+    lock = threading.RLock()    # RLock()，多重锁，同一线程中可多次acquire()
+    cacheLock = threading.RLock()
 
     imgCacheList = []  # 原图缓存队列，用做视频拼接
-    md5List = []  # 原图缓存队列中每帧的md5值
-    # input_path = "E:/BaiduNetdiskDownload/2020-04-14/10.6.8.181_01_20200414185039477.mp4"
+
+    input_path = "D:/logs/10.6.8.181_20201104_171711.558.mp4"
     # input_path = 0
-    t1 = threading.Thread(target=capture_thread, args=(rtsp_url, frame_buffer, lock, imgCacheList, md5List))
+    # t1 = threading.Thread(target=capture_video, args=(rtsp_url, frame_buffer, lock, imgCacheList, cacheLock))
+    # t1.start()
+    t1 = threading.Thread(target=capture_video, args=(input_path, frame_buffer, lock, imgCacheList, cacheLock))
     t1.start()
-    t2 = threading.Thread(target=detect_thread, args=(cfg, frame_buffer, lock, imgCacheList, md5List))
+    t2 = threading.Thread(target=detect_thread, args=(cfg, frame_buffer, lock, imgCacheList, cacheLock))
     t2.start()

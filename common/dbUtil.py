@@ -1,9 +1,10 @@
 import re
 import json
 import time
+import pandas as pd
 import traceback
 from common.config import conn, cursor, log, table_name, evade_table_name, ip, table_ftpLog
-from common.dateUtil import formatTimestamp
+from common.dateUtil import formatTimestamp, datetime_add
 
 '''
     数据库操作工具
@@ -208,6 +209,81 @@ def saveFTPLog2DB(zipTargetFile, ftpTargetFile, isSame):
     return 0
 
 '''
+    创建信息明细表
+    :return ret 0，创建成功
+'''
+def create_distance_info_table(distance_table_name):
+    sql = '''
+        CREATE TABLE `%s`  (
+            `ip` varchar(255) CHARACTER SET utf8mb4  NULL DEFAULT NULL,
+            `gate_num` varchar(255) CHARACTER SET utf8mb4 NULL DEFAULT NULL,
+            `s_time` varchar(255) CHARACTER SET utf8mb4 NULL DEFAULT NULL,
+            `ms_time` varchar(255) CHARACTER SET utf8mb4 NULL DEFAULT NULL,
+            `distance` double(10, 5) NULL DEFAULT NULL, 
+            INDEX `s_time_idx`(`s_time`) USING BTREE COMMENT '秒级时间索引',
+            INDEX `ms_time_idx`(`ms_time`) USING BTREE COMMENT '毫秒级时间索引'
+        ) ENGINE = InnoDB CHARACTER SET = utf8mb4 ROW_FORMAT = Dynamic;
+    ''' % (distance_table_name)
+
+    ret = cursor.execute(sql)
+    log.logger.info("%s 表已创建: %s" % (distance_table_name, ret))
+    return ret
+
+'''
+    测距内容入库
+    :param ip 哪个摄像头
+    :param gate_num 几号闸机
+    # :param s_time 当前时间：精确到s
+    # :param ms_time 当前时间：精确到ms
+    :param distance 测得的距离：cm
+    :return 
+'''
+def saveDistanceInfo2DB(ip, gate_num, distance):
+    distance_table_name = "distance_%s_%s" % (ip.replace(".", "_"), gate_num)    # 测距表：按通道编号保存
+    if table_exists(distance_table_name) is False:
+        create_distance_info_table(distance_table_name)
+
+    try:
+        s_time = formatTimestamp(time.time(), format='%Y%m%d_%H%M%S')    # 秒级时间
+        ms_time = formatTimestamp(time.time(), format='%Y%m%d_%H%M%S', ms=True)    # 毫秒级时间
+        sql = "insert into %s" % (distance_table_name)
+        sql = sql + '''
+                (ip, gate_num, s_time, ms_time, distance) 
+                VALUES ('%s', '%s', '%s', '%s', %f)
+              ''' % (ip, gate_num, s_time, ms_time, distance)
+
+        cursor.execute(sql)
+        conn.commit()
+    except Exception as e:
+        traceback.print_exc(e)
+        conn.rollback()
+    return 0
+
+
+'''
+    获取指定通道指定时间区间的测距值
+    :param gate_num 指定通道
+    :param start_time 起始时间：精确到s
+    :param end_time 结束时间：精确到s
+    :return 结果做成df返回
+'''
+def getDistanceByTime(gate_num, start_time, end_time):
+    distance_table_name = "distance_%s_%s" % (ip.replace(".", "_"), gate_num)
+    print("distance_table_name: ", distance_table_name)
+    if table_exists(distance_table_name) is False:
+        print("==正在建表")
+        create_distance_info_table(distance_table_name)
+
+    sql = "select ip, gate_num, s_time, ms_time, distance from distance_10_6_8_181_0 where s_time >= '%s' and s_time <= '%s';" % (start_time, end_time)    # 找指定时间区间的测距值
+    cursor.execute(sql)
+    results = cursor.fetchall()    # results[0], <class 'tuple'>
+    # print(cursor.description)
+    columnDes = cursor.description  # 获取连接对象的描述信息
+    columnNames = [columnDes[i][0] for i in range(len(columnDes))]
+    df = pd.DataFrame([list(i) for i in results], columns=columnNames)
+    return df
+
+'''
     获取文件在FTP服务器的状态
 '''
 def getFileStatusInFTP(local_file):
@@ -234,4 +310,8 @@ if __name__ == '__main__':
     # else:
     #     print(table_name + " 表已存在")
     # print(getMaxPersonID())
-    print(getFileStatusInFTP("D:/monitor_images/10.6.8.181/normal_images/20201026/10.6.8.181_20201026_084728.395.jpg"))
+    # print(getFileStatusInFTP("D:/monitor_images/10.6.8.181/normal_images/20201026/10.6.8.181_20201026_084728.395.jpg"))
+    start_time = datetime_add("20201208_095734.123", fmtStr="%Y%m%d_%H%M%S.%f", s=-1)
+    end_time = datetime_add("20201208_095734.456", fmtStr="%Y%m%d_%H%M%S.%f", s=1)
+    df = getDistanceByTime(0, start_time, end_time)
+    print(df)

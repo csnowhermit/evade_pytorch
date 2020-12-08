@@ -70,6 +70,7 @@ Text4.grid(row=2, column=0, padx=20, pady=5,sticky=W,columnspan=2)
 def Subfun():
     update()
 
-t = threading.Thread(target=Subfun)
-t.start()
-mainloop()
+if __name__ == '__main__':
+    t = threading.Thread(target=Subfun)
+    t.start()
+    mainloop()
