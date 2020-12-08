@@ -1,5 +1,5 @@
 import os
-from common.config import person_types, goods_types, log, image_size, effective_area_rate, person_types_threahold, child_correct_line2
+from common.config import person_types, goods_types, log, image_size, effective_area_rate, person_types_threahold, child_correct_line2, head_filter_area_rate, head_area_filter_ratio
 from common.person_nms import calc_special_nms
 
 '''
@@ -33,15 +33,8 @@ def cleaning_box(bbox_xyxy, cls_conf, cls_ids, class_names):
             if is_effective(xyxy) is True:  # 只有在有效范围内，才算数
                 if score >= person_types_threahold:  # 只有大于置信度的，才能视为人头
                     left, top, right, bottom = xyxy
-
-                    # 1.对1号通道做小孩/大人的人物框面积做过滤
-
-                    # 2.对2号通道做小孩认定区域的过滤
-                    if right >= passway_area2[0] and right <= passway_area2[1]:    # 人头最右侧在2号通道的小孩认定区域内
-                        special_classes.append("child")    # 认为是小孩
-                    else:
-                        special_classes.append(predicted_class)    # 否则，该是啥就是啥
-
+                    pred_cls = fix_person_type(xyxy, predicted_class, passway_area2)    # 修正人物类型
+                    special_classes.append(pred_cls)
                     special_boxs.append([left, top, right, bottom])  # 左上右下，经过calc_special_nms()才转为 左上宽高
                     special_scores.append(score)
         elif predicted_class in goods_types:  # 随身物品，直接算
@@ -67,21 +60,68 @@ def cleaning_box(bbox_xyxy, cls_conf, cls_ids, class_names):
 
 
 '''
+    根据所处位置和面积比率修正人物类型：大人/小孩
+    :param xyxy 人物框：左上右下
+    :param predicted_class 预测到的框
+    :return 返回修正后的人物类型
+'''
+def fix_person_type(xyxy, predicted_class, passway_area2):
+    left, top, right, bottom = xyxy
+    pred_cls = ""
+
+    # 1.对1号通道做小孩/大人的人物框面积做过滤
+    if isin_headFilterArea(xyxy) is True:  # 如果在人头面积过滤区域
+        head_area = (right - left) * (bottom - top)
+        head_ratio = float(head_area / (image_size[0] * image_size[1]))
+        if head_ratio < head_area_filter_ratio:  # 人头面积小于阀值，认为是小孩
+            pred_cls = "child"
+        else:  # 否则，该是啥就是啥
+            pred_cls = predicted_class
+    elif right >= passway_area2[0] and right <= passway_area2[1]:    # 对2号通道做小孩认定区域的过滤：人头最右侧在2号通道的小孩认定区域内
+        pred_cls = "child"
+    else:
+        pred_cls = predicted_class  # 否则，该是啥就是啥
+    return pred_cls
+
+'''
     根据config.py的image_size，effective_area_rate，计算有效区域
     :return 返回有效区域：左上右下
 '''
 def get_effective_area():
-    # # center = (image_size[0]/2, image_size[1]/2)    # 中心点坐标
-    # # width = image_size[0] * effective_area_rate[0]    # 有效区域宽度
-    # # height = image_size[1] * effective_area_rate[1]    # 有效区域高度
-    #
-    # return (int(center[0] - width / 2), int(center[1] - height / 2), int(center[0] + width / 2), int(center[1] + height / 2))
+    center = (image_size[0]/2, image_size[1]/2)    # 中心点坐标
+    width = image_size[0] * effective_area_rate[0]    # 有效区域宽度
+    height = image_size[1] * effective_area_rate[1]    # 有效区域高度
+
+    return (int(center[0] - width / 2), int(center[1] - height / 2), int(center[0] + width / 2), int(center[1] + height / 2))
+
+
+'''
+    小孩人头框面积过滤区域
+'''
+def get_head_filter_area():
     # 只算指定区域的
-    # (1920*0, 1080*0.17, 1920*1, 1080*0.78)
-    return (int(image_size[0] * effective_area_rate[0]), int(image_size[1] * effective_area_rate[1]),
-            int(image_size[0] * effective_area_rate[2]), int(image_size[1] * effective_area_rate[3]))
+    # (1920*0.36, 1080*0.17, 1920*0.7, 1080*0.78)
+    return (int(image_size[0] * head_filter_area_rate[0]), int(image_size[1] * head_filter_area_rate[1]),
+            int(image_size[0] * head_filter_area_rate[2]), int(image_size[1] * head_filter_area_rate[3]))
 
+'''
+    判断人物框是否在面积过滤区间内
+    :param box 原始检出的box，左上右下
+    :return True，在有效区间内；False，不在有效区间内
+'''
+def isin_headFilterArea(box):
+    left, top, right, bottom = box    # 左上右下
+    w = right - left
+    h = bottom - top
+    centerx = left + w / 2
+    centery = top + h / 2
 
+    filter_left, filter_top, filter_right, filter_bottom = get_head_filter_area()    # 标定的有效区域为：左上右下
+
+    if (centerx >= filter_left and centerx <= filter_right) and (centery >= filter_top and centery <= filter_bottom):
+        return True
+    else:
+        return False
 
 '''
     判断人物框是否在有效区间内

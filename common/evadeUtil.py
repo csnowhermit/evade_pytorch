@@ -79,6 +79,15 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
     log.logger.info("人物类型序列classes：%s" % classes)
     log.logger.info("人物ID序列personidArr：%s" % personidArr)
 
+    print("personForwardDict: %s" % personForwardDict)
+    print("personBoxDict: %s" % personBoxDict)
+    print("personLocaDict: %s" % personLocaDict)
+    print("personIsCrossLine: %s" % personIsCrossLine)
+    log.logger.info("personForwardDict: %s" % personForwardDict)
+    log.logger.info("personBoxDict: %s" % personBoxDict)
+    log.logger.info("personLocaDict: %s" % personLocaDict)
+    log.logger.info("personIsCrossLine: %s" % personIsCrossLine)
+
     if len(bboxes) < 1:
         flag = "NOBODY"
         log.logger.warn(flag)
@@ -173,8 +182,8 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
             print("通道 %s：人物框：%s，人物类别：%s, 人物ID：%s" % (passway, suspicion_evade_boxes, suspicion_evade_classes, suspicion_evade_personIds))
             log.logger.info("通道 %s：人物框：%s，人物类别：%s, 人物ID：%s" % (passway, suspicion_evade_boxes, suspicion_evade_classes, suspicion_evade_personIds))
             ## 2.3、计算两两之间的距离，通过次距离判断是否属于逃票，center跟suspicion_evade_boxes平级，只是保存坐标点位不同
-            center = [[abs(left) + (abs(right)- abs(left)) / 2,
-                       abs(top) + (abs(bottom) -abs(top)) / 2] for (left, top, right, bottom) in suspicion_evade_boxes]
+            center = [[(abs(left) + abs(right)) / 2,
+                       (abs(top) + abs(bottom)) / 2] for (left, top, right, bottom) in suspicion_evade_boxes]
 
             evade_index_list = []       # 涉嫌逃票的序号：在原始bboxes中的序号
             delivery_index_list = []    # 隔闸机递东西的序号：在原始bboxes中的序号
@@ -254,7 +263,7 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
                                 person2_forward = personForwardDict[suspicion_evade_personIds[j]]    # 第2个人的方向
 
                                 # 1.如果两人方向一致，或任意一人是新来的
-                                if person1_forward == person2_forward or (person1_forward == "0" or person2_forward == "0"):
+                                if person1_forward == person2_forward or person1_forward == "0" or person2_forward == "0":
                                     # 2.且后者过线，才认为是逃票
                                     # debug,
                                     # evade_following: 205.0
@@ -273,13 +282,15 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
                                     # 被尾随的
                                     be_tailed = suspicion2 if suspicion_evade[1] == suspicion1[1] else suspicion1
 
-                                    if personIsCrossLine[suspicion_evade[1]] == "1":    # 尾随人过线，是逃票
+                                    # # 尾随人过线判断：该逻辑不能用。原因：当逃票者过线时，被尾随者已经走出通道，这时通道内仍只有一个人（是逃票者）
+                                    # if personIsCrossLine[suspicion_evade[1]] == "1":    # 尾随人过线，是逃票
+                                    if gate_light_status_list[passway] == "redLight":    # 此处用红灯预警替代
                                         print("逃票详情：")
-                                        print("逃票者：%s" % suspicion_evade)
-                                        print("被尾随：%s" % be_tailed)
-                                        log.logger.infolog.logger.info("逃票详情：")
-                                        log.logger.info("逃票者：%s" % suspicion_evade)
-                                        log.logger.info("被尾随：%s" % be_tailed)
+                                        print("逃票者：%s" % str(suspicion_evade))
+                                        print("被尾随：%s" % str(be_tailed))
+                                        log.logger.info("逃票详情：")
+                                        log.logger.info("逃票者：%s" % str(suspicion_evade))
+                                        log.logger.info("被尾随：%s" % str(be_tailed))
 
                                         evade_index_list.append(bboxes.index(suspicion_evade[0]))    # 只有逃票者会被记，被尾随的不会被记录
 
@@ -489,9 +500,9 @@ def judgeStatus(trackList, personForwardDict, personBoxDict, personLocaDict, per
             prev_left, prev_top, prev_right, prev_bottom = prev_box
             prev_centery = (prev_top + prev_bottom) / 2
             if centery < prev_centery:  # 当前小于上一帧
-                personForwardDict[person_id] = 1  # 方向向上
+                personForwardDict[person_id] = "1"  # 方向向上
             else:
-                personForwardDict[person_id] = 2  # 方向向下
+                personForwardDict[person_id] = "2"  # 方向向下
             personBoxDict[person_id] = bbox
             currLoca = "0" if centery < image_size[1] / 2 else "1"
             personLocaDict[person_id] = currLoca
@@ -504,9 +515,14 @@ def judgeStatus(trackList, personForwardDict, personBoxDict, personLocaDict, per
     for pid in personForwardDict.keys():  # 出域的人方向标记为3，
         if pid not in curr_person_id_list:
             personForwardDict[pid] = "3"  # 先标记
+            del_pid_list.append(pid)
 
+    # print("curr_person_id_list: %s" % (str(curr_person_id_list)))
+    print("正在删除出界的人：%s" % (str(pid)))
+    log.logger.info("正在删除出界的人：%s" % (str(pid)))
     # 再删除
     for pid in del_pid_list:
+        # print("正在删除出界的人：%s %s" % (type(pid), pid))
         del personForwardDict[pid]
         del personBoxDict[pid]
         del personLocaDict[pid]
