@@ -1,4 +1,5 @@
 import os
+import datetime
 import pymysql
 import hashlib
 from common.Logger import Logger as Logger
@@ -82,11 +83,11 @@ if os.path.exists(evade_video_path) is False:
 
 # 视频原图数据帧list大小
 imgCacheSize = 30 * 60 * 1    # 默认存2分钟的图片
-imgNearSize = 30 * 5    # 用前后n秒的图片合成视频
+imgNearSize = 30 * 3    # 用前后n秒的图片合成视频
 
 # 通过状态的判断条件：图像的高*比例，在两比例之间，认定为涉嫌逃票
 up_distance_rate = 0.6
-down_distance_rate = 0.2    # 0.2会漏掉部分抱小孩的情况
+down_distance_rate = 0.2    # 0.2会误判部分抱小孩的情况
 
 # 日志文件
 logfile = 'D:/evade_logs/evade_%s_%s.log' % (ip, appid)
@@ -111,3 +112,8 @@ ftp_password = "123456"
 ftp_log = 'D:/evade_logs/ftp_%s.log' % ip
 
 table_ftpLog = "ftplog_%s" % (ip.replace(".", "_"))    # ftp日志表
+
+# 运营时间
+start_time = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '05:30', '%Y-%m-%d%H:%M')
+end_time = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '23:40', '%Y-%m-%d%H:%M')
+

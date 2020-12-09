@@ -1,20 +1,28 @@
 import time
+import datetime
+from common.dateUtil import formatTimestamp
 
-items = []
+# 范围时间
+start_time = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '05:30', '%Y-%m-%d%H:%M')
+end_time = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '23:42', '%Y-%m-%d%H:%M')
 
-items.append((101, "A"))
-items.append((102, "B"))
-items.append((103, "C"))
-items.append((104, "D"))
-items.append((105, "E"))
+print(start_time)
+print(end_time)
 
-index = [i for i in range(len(items)) if items[i][0]==103][0]
-print(index)
+# # 当前时间
+# n_time = datetime.datetime.now()
+# # n_time = formatTimestamp(1607528477)
+#
+# ltime=time.localtime(1395025933)
+# timeStr=time.strftime("%Y-%m-%d %H:%M", ltime)
+# print(type(timeStr), timeStr)
 
-tmp = items[1:3]
-print(tmp)
+read_time = 1607528477.123456
+n_time = datetime.datetime.fromtimestamp(read_time)
+print(type(n_time), n_time)
 
-del items[0]
-
-print(items)
-print(tmp)
+# 判断当前时间是否在范围时间内
+if n_time >= start_time and n_time <= end_time:
+    print("running")
+else:
+    print("sleep")

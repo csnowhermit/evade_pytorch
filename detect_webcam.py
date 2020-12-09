@@ -10,12 +10,13 @@ import warnings
 import cv2
 import torch
 import traceback
+import datetime
 import hashlib
 import numpy as np
 
 from PIL import Image, ImageDraw, ImageFont
 import colorsys
-from common.config import normal_save_path, evade_save_path, ip, log, image_size, rtsp_url, evade_origin_save_path, imgCacheSize, imgNearSize, evade_video_path, ftp_ip, ftp_username, ftp_password
+from common.config import normal_save_path, evade_save_path, ip, log, image_size, rtsp_url, evade_origin_save_path, imgCacheSize, imgNearSize, evade_video_path, start_time, end_time
 from common.evadeUtil import evade_vote, judgeStatus
 from common.dateUtil import formatTimestamp
 from common.dbUtil import saveManyDetails2DB, getMaxPersonID, saveFTPLog2DB
@@ -56,9 +57,8 @@ def capture_video(video_path, frame_buffer, lock, imgCacheList, cacheLock):
         if len(imgCacheList) > imgCacheSize:  # 如果超长，则删除最前面的
             imgCacheList.remove(imgCacheList[0])
         cacheLock.release()
-        time.sleep(0.1)
+        time.sleep(0.5)
 
-        cv2.waitKey(25)    # delay 25ms
 
 '''
     视频流读取线程：读取到自定义缓冲区
@@ -100,41 +100,31 @@ def capture_thread(input_webcam, frame_buffer, lock, imgCacheList, cacheLock):
             vid = cv2.VideoCapture(input_webcam)
             print("OSError: %s, \n 已重连: %s" % (traceback.format_exc(), vid))
             log.logger.error("OSError: %s, \n 已重连: %s" % (traceback.format_exc(), vid))
-        if return_value is not True:
+        if return_value is True:
+            read_time = time.time()  # 读取时间
+
+            # 判断时间：只识别运营中的
+            n_time = datetime.datetime.fromtimestamp(read_time)    # 时间戳转datetime
+            if n_time >= start_time and n_time <= end_time:
+                if count % 2 == 0:  # 表示每2帧接入一帧
+                    count = 0
+                    lock.acquire()
+                    frame_buffer.push((read_time, frame))  # 用于跳帧识别的缓存
+                    lock.release()
+                cacheLock.acquire()
+                imgCacheList.append((read_time, frame))  # 用于合成视频
+                if len(imgCacheList) > imgCacheSize:  # 如果超长，则删除最前面的
+                    imgCacheList.remove(imgCacheList[0])
+                cacheLock.release()
+                cv2.waitKey(1)  # delay ms
+            else:
+                continue
+        else:
             time.sleep(0.5)  # 读取失败后直接重连没有任何意义
             vid = cv2.VideoCapture(input_webcam)
             print("读取失败, 已重连: %s" % (vid))
             log.logger.error("读取失败, 已重连: %s" % (vid))
 
-        if count %2 == 0:    # 表示每2帧接入一帧
-            count = 0
-            lock.acquire()
-            read_time = time.time()  # 读取时间
-            frame_buffer.push((read_time, frame))  # 用于跳帧识别的缓存
-            lock.release()
-        time.sleep(0.5)
-
-
-
-        # try:
-        #     imgCacheList.append(frame)  # 用来生成截取视频的缓存
-        #     sign = hashlib.md5(frame).hexdigest()
-        #     md5List.append(sign)  # 图片的签名值
-        #     if len(imgCacheList) > imgCacheSize:  # 如果超长，则删除最前面的
-        #         imgCacheList.remove(imgCacheList[0])
-        #     if len(md5List) > imgNearSize:
-        #         md5List.remove(md5List[0])
-        # except TypeError as e:
-        #     print("视频序列准备失败: %s" % (traceback.format_exc()))
-        #     log.logger.error("视频序列准备失败: %s" % (traceback.format_exc()))
-        #     pass
-        # except Exception as e:
-        #     print("视频序列准备失败: %s" % (traceback.format_exc()))
-        #     log.logger.error("视频序列准备失败: %s" % (traceback.format_exc()))
-        #     pass
-
-
-        cv2.waitKey(25)    # delay 25ms
 
 def detect_thread(cfg, frame_buffer, lock, imgCacheList, cacheLock):
     # # 准备FTP服务器
@@ -175,7 +165,6 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, cacheLock):
                 read_t1 = time.time()  # 读取动作开始
                 lock.acquire()
                 curr_timestamp, frame = frame_buffer.get()  # 按序拿
-                frame_buffer.clear()        # 拿完之后清空缓冲区，避免短期采集线程拿不到数据帧而导致识别线程倒退识别
                 lock.release()
 
                 print("=================== start a image reco %s ===================" % (formatTimestamp(curr_timestamp, ms=True)))
@@ -417,7 +406,7 @@ if __name__ == '__main__':
 
     input_path = "D:/logs/10.6.8.181_20201104_171711.558.mp4"
     # input_path = 0
-    # t1 = threading.Thread(target=capture_video, args=(rtsp_url, frame_buffer, lock, imgCacheList, cacheLock))
+    # t1 = threading.Thread(target=capture_thread, args=(rtsp_url, frame_buffer, lock, imgCacheList, cacheLock))
     # t1.start()
     t1 = threading.Thread(target=capture_video, args=(input_path, frame_buffer, lock, imgCacheList, cacheLock))
     t1.start()

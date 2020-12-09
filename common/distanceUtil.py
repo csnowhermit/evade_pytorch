@@ -5,7 +5,7 @@ import math
 import threading
 import serial
 import sys
-sys.path.append("D:/workspace/workspace_python_evade_pytorch/")
+sys.path.append("D:/workspace/workspace_python/evade_pytorch/")
 from common.dbUtil import saveDistanceInfo2DB
 from common.config import ip
 from common.dateUtil import formatTimestamp

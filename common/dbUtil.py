@@ -269,12 +269,12 @@ def saveDistanceInfo2DB(ip, gate_num, distance):
 '''
 def getDistanceByTime(gate_num, start_time, end_time):
     distance_table_name = "distance_%s_%s" % (ip.replace(".", "_"), gate_num)
-    print("distance_table_name: ", distance_table_name)
+    # print("distance_table_name: ", distance_table_name)
     if table_exists(distance_table_name) is False:
-        print("==正在建表")
+        # print("==正在建表")
         create_distance_info_table(distance_table_name)
 
-    sql = "select ip, gate_num, s_time, ms_time, distance from distance_10_6_8_181_0 where s_time >= '%s' and s_time <= '%s';" % (start_time, end_time)    # 找指定时间区间的测距值
+    sql = "select ip, gate_num, s_time, ms_time, distance from %s where s_time >= '%s' and s_time <= '%s';" % (distance_table_name, start_time, end_time)    # 找指定时间区间的测距值
     cursor.execute(sql)
     results = cursor.fetchall()    # results[0], <class 'tuple'>
     # print(cursor.description)
@@ -313,5 +313,5 @@ if __name__ == '__main__':
     # print(getFileStatusInFTP("D:/monitor_images/10.6.8.181/normal_images/20201026/10.6.8.181_20201026_084728.395.jpg"))
     start_time = datetime_add("20201208_095734.123", fmtStr="%Y%m%d_%H%M%S.%f", s=-1)
     end_time = datetime_add("20201208_095734.456", fmtStr="%Y%m%d_%H%M%S.%f", s=1)
-    df = getDistanceByTime(0, start_time, end_time)
+    df = getDistanceByTime(2, start_time, end_time)
     print(df)

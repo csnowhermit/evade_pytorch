@@ -117,3 +117,17 @@ CREATE TABLE `evade_details`  (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+DROP TABLE IF EXISTS `distance_10_6_8_181_0`;
+CREATE TABLE `distance_10_6_8_181_0`  (
+  `ip` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `gate_num` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `s_time` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `ms_time` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `distance` double(10, 5) NULL DEFAULT NULL,
+  INDEX `s_time_idx`(`s_time`) USING BTREE COMMENT '秒级时间索引',
+  INDEX `ms_time_idx`(`ms_time`) USING BTREE COMMENT '毫秒级时间索引'
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+
+SET FOREIGN_KEY_CHECKS = 1;
+

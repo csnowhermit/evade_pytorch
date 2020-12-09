@@ -289,7 +289,6 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
                                     # # 尾随人过线判断：该逻辑不能用。原因：当逃票者过线时，被尾随者已经走出通道，这时通道内仍只有一个人（是逃票者）
                                     # if personIsCrossLine[suspicion_evade[1]] == "1":    # 尾随人过线，是逃票
                                     if gate_light_status_list[passway] == "redLight":    # 此处用红灯预警替代
-                                        # eeeeeeeeeeeeeeeeee
                                         # 这是再加身高的判断因素
                                         distance = getNearestDistance(passway, curr_time)    # 此距离为设备到头顶的距离
                                         person_height = total_height - distance    # 通过的人的身高
