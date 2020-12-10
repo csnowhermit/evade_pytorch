@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pandas as pd
 from collections import Counter
-from common.config import up_distance_rate, down_distance_rate, log, adult_types, image_size, total_height, child_height_thres
+from common.config import up_distance_rate, down_distance_rate, log, adult_types, image_size, total_height, child_height_thres, through_gate_area
 from common.ContextParam import getContextParam
 from common.entity import TrackContent
 from common.dbUtil import getDistanceByTime
@@ -131,10 +131,10 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
     ## 方法1：把没人的通道和灯删掉（此法不可行，原因：当一个通道同时出现两人时，此法得到的gate_status_list和gate_light_status_list比真实数量少1）
     ## 方法2：构建TrackContent时，通过gate_num，直接从gate_status_list和gate_light_status_list中拿对应通道的状态
 
-    ## 2.再处理人
-    # 2.1、判断各自在哪个通道内
+    ## 2.再处理人：尾随逃票情况
+    # 判断各自在哪个通道内
     which_gateList = isin_which_gate(bboxes)    # which_gateList，有人的闸机序列，每个人的框和各自的闸机序列一一对应
-    # effective_boxes，有效的人物框，这时已过滤掉了不在有效范围内的框
+    pass_status_list = [0] * len(bboxes)  # 每个人的通行状态
     print("有人的闸机序列 which_gateList:", which_gateList)    # which_gateList: [2]，
     log.logger.info("有人的闸机序列 which_gateList: %s" % (which_gateList))
     # which_gateList = [1, 2, 1, 2]    # 写死，测试用
@@ -149,19 +149,39 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
     #         gate_light_status_list_new.append(gate_light_status_list[i])
 
     # 2.2、判断各自通道内的人数
+
+    # 2.1、先做钻闸机的判定
+    for i in range(len(bboxes)):
+        box = bboxes[i]    # 当前人
+        gate_num = which_gateList[i]    # 当前人所在通道
+        light_status = gate_light_status_list[gate_num]    # 当前通道的指示灯
+        gate_status = gate_status_list[gate_num]    # 当前通道闸机门的状态
+        person_cls = classes[i]    # 当前人的类别
+        person_id = personidArr[i]    # 当前人的id
+        isCrossed = personIsCrossLine[person_id]    # 当前人是否过线：0没过线；1过线
+
+        if gate_status == "closed":    # 当闸机关
+            if person_cls == "adult":    # 且为大人（小孩站着过都不算逃票，更何况钻过去了）
+                if isin_throughArea(box) is True:    # 且在钻闸机判定区间内
+                    if isCrossed == "1":    # 且过线，则认为是钻闸机的逃票
+                        flag = "WARNING"    # 检测到有逃票，标记位WARNING
+                        pass_status_list[i] = 4    # 4代表 钻闸机逃票
+
+    # 2.2、尾随逃票情况
+    # 2.2.1、分组统计各通道内人数
     gateCounter = Counter(which_gateList)
     print("gateCounter:", gateCounter)
-    log.logger.info("各通道内人数 gateCounter: %s" % (gateCounter))
+    log.logger.info("各通道内人数 gateCounter: %s" % (gateCounter))    # Counter({1: 1, 2: 1, -1: 1})
 
+    # 2.2.2、找出同一通道出现多人的序列
     multi_personList = []    # 同时出现多人的闸机序列
-    for res in gateCounter.keys():
-        if res == -1:
+    for gate_num in gateCounter.keys():
+        if gate_num == -1:
             continue    # 通道编号为-1，说明不在有效通道范围内，这些人不做逃票判定
-        if gateCounter[res] > 1:
-            multi_personList.append(res)    # 拿到几号闸机同时出现多人
+        if gateCounter[gate_num] > 1:
+            multi_personList.append(gate_num)    # 拿到几号闸机同时出现多人，后续做尾随逃票判定用
 
-    pass_status_list = [0] * len(bboxes)    # 每个人的通行状态
-
+    # 2.2.3、同一通道出现多人的情况
     if len(multi_personList) > 0:    # 否则拿出各通道的人数，计算距离
         passwayPersonDict = {}    # <通道编号，通道内的人员list>
         for i in range(len(which_gateList)):    # 逐个通道获取各通道内的人的序号：
@@ -324,7 +344,8 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
             print("更新后的通行状态: %s" % (pass_status_list))
             log.logger.info("更新后的通行状态: %s" % (pass_status_list))
 
-    ## 3.更新每个人的track内容：新增：闸机编号、通过状态、闸机门状态、闸机灯状态
+
+    ## 4.更新每个人的track内容：新增：闸机编号、通过状态、闸机门状态、闸机灯状态
     for (track, which_gate, pass_status) in zip(tracks, which_gateList, pass_status_list):
         trackContent = TrackContent(gate_num=which_gate,    # 闸机编号
                                     pass_status=pass_status,
@@ -572,4 +593,26 @@ def getNearestDistance(gate_num, curr_time):
         result = df[df['ms_interval'] == df['ms_interval'].min()]['distance']
         return result.values[0]
 
+'''
+    判断是否在钻闸机的判定区域内
+'''
+def isin_throughArea(box):
+    left, top, right, bottom = box  # 左上右下
+    w = right - left
+    h = bottom - top
+    centerx = left + w / 2
+    centery = top + h / 2
 
+    through_left, through_top, through_right, through_bottom = get_through_filter_area()  # 获取钻闸机的判定区域
+
+    if (centerx >= through_left and centerx <= through_right) and (centery >= through_top and centery <= through_bottom):
+        return True
+    else:
+        return False
+
+'''
+    获取钻闸机的判定区域
+'''
+def get_through_filter_area():
+    return (int(image_size[0] * through_gate_area[0]), int(image_size[1] * through_gate_area[1]),
+            int(image_size[0] * through_gate_area[2]), int(image_size[1] * through_gate_area[3]))

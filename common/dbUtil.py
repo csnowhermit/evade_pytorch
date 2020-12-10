@@ -46,7 +46,8 @@ def saveManyDetails2DB(ip, curr_time, savefile, read_time, detect_time, TrackCon
             sql = ""
             log.logger.info("persist to table: %s" % (table_name))
 
-            if trackContent.pass_status == 1:    # 涉嫌逃票的，再单独保存下
+            # 1代表尾随逃票；4代表钻闸机逃票
+            if trackContent.pass_status == 1 or trackContent.pass_status == 4:
                 sql = "insert into %s" % (evade_table_name)
                 sql = sql + '''
                                 (curr_time, savefile, pass_status, read_time, detect_time, 
