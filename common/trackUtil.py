@@ -24,8 +24,10 @@ def getUsefulTrack(person_boxs, tracks):
             if iou.max() > track_iou:  # 如果最大iou>0.45，则认为是这个人
                 which_track.append(iou.argmax())  # 保存tracker.tracks中该人的下标
         # 在tracker.tracks中移除不在which_track的元素
-        for i in range(len(tracks)):
-            if i in which_track:
-                trackList.append(tracks[i])
+        # for i in range(len(tracks)):
+        #     if i in which_track:
+        #         trackList.append(tracks[i])
+        for i in which_track:    # 以上3行逻辑等价于这个，i在which_track中表示tracks中第i个人
+            trackList.append(tracks[i])
     return trackList
 

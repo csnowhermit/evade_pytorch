@@ -113,6 +113,7 @@ def main(input_path, output_path):
         # 原因：人走了，框还在
         # 解决办法：更新后的tracker.tracks与person_boxs再做一次iou，对于每个person_boxs，只保留与其最大iou的track
 
+        # 这里把人物框又转回了 左上右下
         trackList_adult = getUsefulTrack(adult_boxs, deepsort.tracker.tracks)
         trackList_child = getUsefulTrack(child_boxs, deepsort.tracker.tracks)
 
@@ -126,7 +127,7 @@ def main(input_path, output_path):
 
         trackList = trackList_adult + trackList_child
 
-        # 这里判定每个人的方向，及所在区域
+        # 这里判定每个人的方向，所在区域，是否过线
         personForwardDict, personBoxDict, personLocaDict, personIsCrossLine = judgeStatus(trackList,
                                                                                           personForwardDict,
                                                                                           personBoxDict,
@@ -137,7 +138,7 @@ def main(input_path, output_path):
         # print("frame.shape:", frame.shape)    # frame.shape: (480, 640, 3)
         flag, TrackContentList = evade_vote(trackList, other_classes, other_boxs, other_scores,
                                             frame.shape[0], personForwardDict, personBoxDict,
-                                                    personLocaDict, personIsCrossLine, curr_time_path)  # frame.shape, (h, w, c)
+                                            personLocaDict, personIsCrossLine, curr_time_path)  # frame.shape, (h, w, c)
 
         detect_time = time.time() - detect_t1  # 检测动作结束
 

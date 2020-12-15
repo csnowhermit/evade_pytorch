@@ -68,6 +68,9 @@ def main(cfg, base_path):
     for input_img in os.listdir(base_path):
         input_img = os.path.join(base_path, input_img)
         read_t1 = time.time()  # 读取动作开始
+        curr_time_path = formatTimestamp(read_t1, format='%Y%m%d_%H%M%S', ms=True)
+        outfile = input_img[input_img.rindex("/") + 1 : -4] + "-out.jpg"
+        # print("outfile: ", outfile)
         frame = cv2.imread(input_img)
 
         print("=================== start a image reco %s ===================" % (formatTimestamp(time.time(), ms=True)))
@@ -98,11 +101,11 @@ def main(cfg, base_path):
 
         print("检测到：大人 %d %s, 小孩 %d %s" % (len(adult_boxs), adult_boxs, len(child_boxs), child_boxs))
         print("追踪到：大人 %d %s, 小孩 %d %s" % (len(trackList_adult), [track.to_tlbr() for track in trackList_adult],
-                                          len(trackList_child), [track.to_tlbr() for track in trackList_child]))
+                                                   len(trackList_child), [track.to_tlbr() for track in trackList_child]))
         log.logger.info("检测到：大人 %d %s, 小孩 %d %s" % (len(adult_boxs), adult_boxs, len(child_boxs), child_boxs))
         log.logger.info(
             "追踪到：大人 %d %s, 小孩 %d %s" % (len(trackList_adult), [track.to_tlbr() for track in trackList_adult],
-                                        len(trackList_child), [track.to_tlbr() for track in trackList_child]))
+                                                 len(trackList_child), [track.to_tlbr() for track in trackList_child]))
 
         trackList = trackList_adult + trackList_child
 
@@ -116,7 +119,8 @@ def main(cfg, base_path):
         # 判定通行状态：0正常通过，1涉嫌逃票
         # print("frame.shape:", frame.shape)    # frame.shape: (480, 640, 3)
         flag, TrackContentList = evade_vote(trackList, other_classes, other_boxs, other_scores,
-                                            frame.shape[0])  # frame.shape, (h, w, c)
+                                            frame.shape[0], personForwardDict, personBoxDict,
+                                            personLocaDict, personIsCrossLine, curr_time_path)  # frame.shape, (h, w, c)
 
         detect_time = time.time() - detect_t1  # 检测动作结束
 
@@ -135,7 +139,7 @@ def main(cfg, base_path):
             left = max(0, np.floor(left + 0.5).astype('int32'))
             bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
             right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
-            print(label, (left, top), (right, bottom))
+            print(label, (left, top), (right, bottom))    # 这里输出的是cleaning后的
             log.logger.info("%s, (%d, %d), (%d, %d)" % (label, left, top, right, bottom))
 
             if top - label_size[1] >= 0:
@@ -193,7 +197,6 @@ def main(cfg, base_path):
         ################ 批量入库 ################
         if len(TrackContentList) > 0:  # 只有有人，才进行入库，保存等操作
             curr_time = formatTimestamp(read_t1, ms=True)  # 当前时间按读取时间算，精确到毫秒
-            curr_time_path = formatTimestamp(read_t1, format='%Y%m%d_%H%M%S', ms=True)
             curr_date = formatTimestamp(read_t1, format='%Y%m%d')
 
             normal_time_path = normal_save_path + curr_date + "/"  # 正常图片，按天分目录
@@ -212,7 +215,7 @@ def main(cfg, base_path):
                 os.makedirs(evade_video_time_path)
 
             if flag == "NORMAL":  # 正常情况
-                savefile = os.path.join(normal_time_path, ip + "_" + curr_time_path + ".jpg")
+                savefile = os.path.join(normal_time_path, ip + "_" + outfile + ".jpg")
                 status = cv2.imwrite(filename=savefile, img=result)  # cv2.imwrite()保存文件，路径不能有2个及以上冒号
 
                 print("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
@@ -237,11 +240,11 @@ def main(cfg, base_path):
                 #         if ftp_retry > 3:  # 上传ftp，重试3次
                 #             break
             elif flag == "WARNING":  # 逃票情况
-                savefile = os.path.join(evade_time_path, ip + "_" + curr_time_path + ".jpg")
+                savefile = os.path.join(evade_time_path, ip + "_" + outfile + ".jpg")
                 status = cv2.imwrite(filename=savefile, img=result)
 
                 # 只有检出逃票行为后，才将原始未标注的图片保存，便于以后更新模型
-                originfile = os.path.join(evade_origin_time_path, ip + "_" + curr_time_path + "-origin.jpg")
+                originfile = os.path.join(evade_origin_time_path, ip + "_" + outfile + "-origin.jpg")
                 status2 = cv2.imwrite(filename=originfile, img=frame)
 
                 print("时间: %s, 状态: %s, 原始文件: %s, 保存状态: %s, 检后文件: %s, 保存状态: %s" % (
@@ -302,7 +305,7 @@ def main(cfg, base_path):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_detection", type=str, default="./configs/yolov3-evade.yaml")
+    parser.add_argument("--config_detection", type=str, default="./configs/yolov5s-evade.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     # parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display", action="store_true")
@@ -324,5 +327,5 @@ if __name__ == '__main__':
     print("cfg:", type(cfg), cfg)
     print("args:", type(args), args)
 
-    base_path = "E:/181/evade_origin_images/"
+    base_path = "E:/181/eo/"
     main(cfg, base_path)

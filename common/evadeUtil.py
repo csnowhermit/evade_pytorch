@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pandas as pd
 from collections import Counter
-from common.config import up_distance_rate, down_distance_rate, log, adult_types, image_size, total_height, child_height_thres, through_gate_area
+from common.config import up_distance_rate, down_distance_rate, log, adult_types, image_size, gateDistanceDict, through_gate_area
 from common.ContextParam import getContextParam
 from common.entity import TrackContent
 from common.dbUtil import getDistanceByTime
@@ -66,8 +66,8 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
     flag = "NORMAL"    # 默认该帧图片的通行状态为NORMAL，遇到有逃票时改为WARNING
     up_distance_threshold = height * up_distance_rate
     down_distance_threshold = height * down_distance_rate
-    print("人间距上限: %f, 下限: %f" % (up_distance_threshold, down_distance_threshold))
-    log.logger.info("人间距上限: %f, 下限: %f" % (up_distance_threshold, down_distance_threshold))
+    print("人间距上限: %.3f, 下限: %.3f" % (up_distance_threshold, down_distance_threshold))
+    log.logger.info("人间距上限: %.3f, 下限: %.3f" % (up_distance_threshold, down_distance_threshold))
 
     bboxes = [[int(track.to_tlbr()[0]),
                int(track.to_tlbr()[1]),
@@ -150,22 +150,23 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
 
     # 2.2、判断各自通道内的人数
 
-    # 2.1、先做钻闸机的判定
-    for i in range(len(bboxes)):
-        box = bboxes[i]    # 当前人
-        gate_num = which_gateList[i]    # 当前人所在通道
-        light_status = gate_light_status_list[gate_num]    # 当前通道的指示灯
-        gate_status = gate_status_list[gate_num]    # 当前通道闸机门的状态
-        person_cls = classes[i]    # 当前人的类别
-        person_id = personidArr[i]    # 当前人的id
-        isCrossed = personIsCrossLine[person_id]    # 当前人是否过线：0没过线；1过线
-
-        if gate_status == "closed":    # 当闸机关
-            if person_cls == "adult":    # 且为大人（小孩站着过都不算逃票，更何况钻过去了）
-                if isin_throughArea(box) is True:    # 且在钻闸机判定区间内
-                    if isCrossed == "1":    # 且过线，则认为是钻闸机的逃票
-                        flag = "WARNING"    # 检测到有逃票，标记位WARNING
-                        pass_status_list[i] = 4    # 4代表 钻闸机逃票
+    # # 2.1、先做钻闸机的判定
+    # for i in range(len(bboxes)):
+    #     box = bboxes[i]    # 当前人
+    #     gate_num = which_gateList[i]    # 当前人所在通道
+    #     light_status = gate_light_status_list[gate_num]    # 当前通道的指示灯
+    #     gate_status = gate_status_list[gate_num]    # 当前通道闸机门的状态
+    #     person_cls = classes[i]    # 当前人的类别
+    #     person_id = personidArr[i]    # 当前人的id
+    #     isCrossed = personIsCrossLine[person_id]    # 当前人是否过线：0没过线；1过线
+    #
+    #     if gate_status == "closed":    # 当闸机关
+    #         if person_cls == "adult":    # 且为大人（小孩站着过都不算逃票，更何况钻过去了）
+    #             if light_status == "redLight":    # 且亮红灯
+    #                 if isin_throughArea(box) is True:    # 且在钻闸机判定区间内
+    #                     if isCrossed == "1":    # 且过线，则认为是钻闸机的逃票
+    #                         flag = "WARNING"    # 检测到有逃票，标记位WARNING
+    #                         pass_status_list[i] = 4    # 4代表 钻闸机逃票
 
     # 2.2、尾随逃票情况
     # 2.2.1、分组统计各通道内人数
@@ -197,7 +198,7 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
 
         for passway in passwayPersonDict.keys():    # 逐个处理每一个通道的多人情况
             personList = passwayPersonDict[passway]    # 拿到该通道内的所有人在bboxes中的序列，passway为通道编号
-            default_displacement = gate_default_displacement_list[passway]    # 该通道的画面位移
+            default_displacement = gate_default_displacement_list[passway]    # 该通道的画面位移，默认通过该通道是往上还是往下
 
             suspicion_evade_boxes = [bboxes[person_index] for person_index in personList]  # 同一通道里的所有人框
             suspicion_evade_classes = [classes[person_index] for person_index in personList]    # 同一通道里的所有人类别
@@ -231,7 +232,7 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
                         # 第i个人，第j个人
                         if suspicion_evade_classes[i] in adult_types and suspicion_evade_classes[j] in adult_types:    # 只有当两个人都是大人时
 
-                            # 这时还需加入闸机门的判断：如果闸机门关，且两人在闸机门两侧，说明在递东西，pass_status置为2，不属于逃票
+                            # 这时还需加入闸机门的判断：如果闸机门关（不存在过线的情况了），且两人在闸机门两侧，说明在递东西，pass_status置为2，不属于逃票
                             tag = isDelivery(person1y, person2y, gate_status_list[passway], gate_area_list[passway])
                             if tag == "Delivery":
                                 # 隔闸机递东西
@@ -265,7 +266,7 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
                                 block_index_list.append(index2)
                             else:    # 这里是涉嫌逃票
                                 suspicion1 = suspicion_evade_boxes[center.index(center[i])], suspicion_evade_personIds[center.index(center[i])]  # 嫌疑人1的box，id
-                                suspicion2 = suspicion_evade_boxes[center.index(center[j])], suspicion_evade_personIds[center.index(center[i])]  # 嫌疑人2的box，id
+                                suspicion2 = suspicion_evade_boxes[center.index(center[j])], suspicion_evade_personIds[center.index(center[j])]  # 嫌疑人2的box，id
 
                                 index1 = bboxes.index(suspicion1[0])    # 涉嫌逃票的两人的全局序号
                                 index2 = bboxes.index(suspicion2[0])
@@ -306,13 +307,13 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
                                     # 被尾随的
                                     be_tailed = suspicion2 if suspicion_evade[1] == suspicion1[1] else suspicion1
 
-                                    # # 尾随人过线判断：该逻辑不能用。原因：当逃票者过线时，被尾随者已经走出通道，这时通道内仍只有一个人（是逃票者）
+                                    # # 尾随人过线判断：该逻辑不能用。原因：当逃票者过线时，被尾随者已经走出通道，这时通道内仍只有一个人（逃票者）
                                     # if personIsCrossLine[suspicion_evade[1]] == "1":    # 尾随人过线，是逃票
                                     if gate_light_status_list[passway] == "redLight":    # 此处用红灯预警替代
                                         # 这是再加身高的判断因素
-                                        distance = getNearestDistance(passway, curr_time)    # 此距离为设备到头顶的距离
-                                        person_height = total_height - distance    # 通过的人的身高
-                                        if person_height > child_height_thres or person_height == 0:    # 有身高，且大于小孩
+                                        distance = getNearestDistance(passway, curr_time)    # 此距离为设备到测得物体的距离
+                                        # person_height = total_height - distance    # 通过的人的身高
+                                        if distance < gateDistanceDict[passway] or distance == 0:    # 距离比全程小（说明有物体挡住了），说明是大人（小孩挡不住距离）
                                             print("逃票详情：")
                                             print("逃票者：%s" % str(suspicion_evade))
                                             print("被尾随：%s" % str(be_tailed))
@@ -326,8 +327,8 @@ def evade_vote(tracks, other_classes, other_boxs, other_scores, height, personFo
                                             flag = "WARNING"  # 检出有人逃票，该标识为WARNING
                                             log.logger.warn("检测到涉嫌逃票: %s" % flag)
                                         else:
-                                            print("身高不足以购票: %f, 不认为是逃票" % (person_height))
-                                            log.logger.info("身高不足以购票: %f, 不认为是逃票" % (person_height))
+                                            print("身高不足以购票: %f, 不认为是逃票" % (distance))
+                                            log.logger.info("身高不足以购票: %f, 不认为是逃票" % (distance))
                                     else:
                                         print("尾随者 %s 未过线，不认为逃票" % (str(suspicion_evade)))
                                 else:

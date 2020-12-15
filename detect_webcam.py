@@ -313,8 +313,8 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, cacheLock):
 
                     if flag == "NORMAL":  # 正常情况（20201029更新：正常情况和逃票小视频不保存了）
                         savefile = os.path.join(normal_time_path, ip + "_" + curr_time_path + ".jpg")
-                        status = cv2.imwrite(filename=savefile, img=result)  # cv2.imwrite()保存文件，路径不能有2个及以上冒号
-                        # status = False
+                        # status = cv2.imwrite(filename=savefile, img=result)  # cv2.imwrite()保存文件，路径不能有2个及以上冒号
+                        status = False
                         print("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
                         log.logger.info("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
                     elif flag == "WARNING":  # 逃票情况
