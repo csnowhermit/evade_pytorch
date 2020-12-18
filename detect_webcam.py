@@ -17,7 +17,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import colorsys
 from common.config import normal_save_path, evade_save_path, ip, log, image_size, rtsp_url, evade_origin_save_path, imgCacheSize, imgNearSize, evade_video_path, start_time, end_time
-from common.evadeUtil import evade_vote, judgeStatus
+from common.evadeUtil import evade_vote, judgeStatus, evade4new
 from common.dateUtil import formatTimestamp
 from common.dbUtil import saveManyDetails2DB, getMaxPersonID, saveFTPLog2DB
 from common.Stack import Stack
@@ -38,26 +38,59 @@ warnings.filterwarnings('ignore')
 '''
 def capture_video(video_path, frame_buffer, lock, imgCacheList, cacheLock):
     count = 0    # 标记当前帧数
+    fo = open("read.txt", 'w', encoding='utf-8')
 
-    vid = cv2.VideoCapture(video_path)
-    if not vid.isOpened():
-        raise IOError("Couldn't open webcam or video")
+    if os.path.isfile(video_path):
+        fo.write(video_path + "\n")
+        fo.flush()
+        vid = cv2.VideoCapture(video_path)
+        if not vid.isOpened():
+            raise IOError("Couldn't open webcam or video")
 
-    while True:
-        return_value, frame = vid.read()
-        read_time = time.time()  # 读取时间
-        if return_value is True:
-            if count % 2 == 0:  # 表示每2帧接入一帧
-                count = 0
-                lock.acquire()
-                frame_buffer.push((read_time, frame))  # 用于跳帧识别的缓存
-                lock.release()
-        cacheLock.acquire()
-        imgCacheList.append((read_time, frame))    # 用于合成视频
-        if len(imgCacheList) > imgCacheSize:  # 如果超长，则删除最前面的
-            imgCacheList.remove(imgCacheList[0])
-        cacheLock.release()
-        time.sleep(0.5)
+        while True:
+            return_value, frame = vid.read()
+            read_time = time.time()  # 读取时间
+            if return_value is True:
+                if count % 2 == 0:  # 表示每2帧接入一帧
+                    count = 0
+                    lock.acquire()
+                    frame_buffer.push((read_time, frame))  # 用于跳帧识别的缓存
+                    lock.release()
+            cacheLock.acquire()
+            imgCacheList.append((read_time, frame))  # 用于合成视频
+            if len(imgCacheList) > imgCacheSize:  # 如果超长，则删除最前面的
+                imgCacheList.remove(imgCacheList[0])
+            cacheLock.release()
+            time.sleep(0.5)
+    else:
+        for file in os.listdir(video_path):
+            video_file = os.path.join(video_path, file)
+            fo.write(video_file + "\n")
+            fo.flush()
+
+            vid = cv2.VideoCapture(video_file)
+            if not vid.isOpened():
+                raise IOError("Couldn't open webcam or video")
+
+            while True:
+                return_value, frame = vid.read()
+                read_time = time.time()  # 读取时间
+                if return_value is True:
+                    if count % 2 == 0:  # 表示每2帧接入一帧
+                        count = 0
+                        lock.acquire()
+                        frame_buffer.push((read_time, frame))  # 用于跳帧识别的缓存
+                        lock.release()
+                else:
+                    break
+                cacheLock.acquire()
+                imgCacheList.append((read_time, frame))  # 用于合成视频
+                if len(imgCacheList) > imgCacheSize:  # 如果超长，则删除最前面的
+                    imgCacheList.remove(imgCacheList[0])
+                cacheLock.release()
+                time.sleep(0.5)
+
+
 
 
 '''
@@ -159,6 +192,8 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, cacheLock):
     personLocaDict = {}       # 每个人的位置：{personid: 位置}，0图像上半截；1图像下半截
     personIsCrossLine = {}    # 每个人是否过线：{personid: 是否过线}，0没过线；1过线
 
+    following_list = []  # 尾随者list，(box, id)
+
     while True:
         try:
             if frame_buffer.size() > 0:
@@ -211,11 +246,17 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, cacheLock):
                                                                                                   personLocaDict,
                                                                                                   personIsCrossLine)
 
-                # 判定通行状态：0正常通过，1涉嫌逃票
-                # print("frame.shape:", frame.shape)    # frame.shape: (480, 640, 3)
-                flag, TrackContentList = evade_vote(trackList, other_classes, other_boxs, other_scores,
-                                                    frame.shape[0], personForwardDict, personBoxDict,
-                                                    personLocaDict, personIsCrossLine, curr_time_path)  # frame.shape, (h, w, c)
+                # # 判定通行状态：0正常通过，1涉嫌逃票
+                # # print("frame.shape:", frame.shape)    # frame.shape: (480, 640, 3)
+                # flag, TrackContentList = evade_vote(trackList, other_classes, other_boxs, other_scores,
+                #                                     frame.shape[0], personForwardDict, personBoxDict,
+                #                                     personLocaDict, personIsCrossLine, curr_time_path)  # frame.shape, (h, w, c)
+                log.logger.info("*** len(following_list): %d" % (len(following_list)))
+                flag, TrackContentList, following_list = evade4new(trackList, other_classes, other_boxs, other_scores,
+                                                                   frame.shape[0], personForwardDict, personBoxDict,
+                                                                   personLocaDict, personIsCrossLine, curr_time_path,
+                                                                   following_list)  # frame.shape, (h, w, c)
+                log.logger.info("$$$ len(following_list): %d" % (len(following_list)))
 
                 detect_time = time.time() - detect_t1  # 检测动作结束
 
@@ -340,6 +381,7 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, cacheLock):
                             tmp = imgCacheList[start: end]
                             cacheLock.release()
 
+                            t1 = time.time()
                             video_FourCC = 875967080
                             video_fps = 25
                             video_size = (frame.shape[1], frame.shape[0])
@@ -350,8 +392,9 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, cacheLock):
                                 out.write(t[1])
                             out.release()
 
-                            print("视频保存完成: %s %s %s %s" % (video_file, start, index, end))
-                            log.logger.info("视频保存完成: %s %s %s %s" % (video_file, start, index, end))
+                            savevideo_time = time.time() - t1
+                            print("视频保存完成: %s %s %s %s, 耗时: %.3f" % (video_file, start, index, end, savevideo_time))
+                            log.logger.info("视频保存完成: %s %s %s %s, 耗时: %.3f" % (video_file, start, index, end, savevideo_time))
                         except ValueError as e:
                             cacheLock.release()
                             print("当前图片不存在于缓存中: %s" % (traceback.format_exc()))
@@ -404,7 +447,8 @@ if __name__ == '__main__':
 
     imgCacheList = []  # 原图缓存队列，用做视频拼接
 
-    input_path = "D:/logs/10.6.8.181_20201104_171711.558.mp4"
+    # input_path = "D:/logs/10.6.8.181_20201104_171711.558.mp4"
+    input_path = "D:/logs/"
     # input_path = 0
     # t1 = threading.Thread(target=capture_thread, args=(rtsp_url, frame_buffer, lock, imgCacheList, cacheLock))
     # t1.start()

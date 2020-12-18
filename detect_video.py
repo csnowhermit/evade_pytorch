@@ -16,7 +16,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import colorsys
 from common.config import normal_save_path, evade_save_path, ip, log, image_size, rtsp_url, evade_origin_save_path, imgCacheSize, imgNearSize, evade_video_path, ftp_ip, ftp_username, ftp_password
-from common.evadeUtil import evade_vote, judgeStatus
+from common.evadeUtil import evade_vote, judgeStatus, evade4new
 from common.dateUtil import formatTimestamp
 from common.dbUtil import saveManyDetails2DB, getMaxPersonID, saveFTPLog2DB
 from common.Stack import Stack
@@ -77,6 +77,8 @@ def main(input_path, output_path):
     personLocaDict = {}  # 每个人的位置：{personid: 位置}，0图像上半截；1图像下半截
     personIsCrossLine = {}  # 每个人是否过线：{personid: 是否过线}，0没过线；1过线
 
+    following_list = []    # 尾随者list，(box, id)
+
     count = 0
     while True:
         read_t1 = time.time()  # 读取动作开始
@@ -136,10 +138,15 @@ def main(input_path, output_path):
 
         # 判定通行状态：0正常通过，1涉嫌逃票
         # print("frame.shape:", frame.shape)    # frame.shape: (480, 640, 3)
-        flag, TrackContentList = evade_vote(trackList, other_classes, other_boxs, other_scores,
-                                            frame.shape[0], personForwardDict, personBoxDict,
-                                            personLocaDict, personIsCrossLine, curr_time_path)  # frame.shape, (h, w, c)
-
+        # flag, TrackContentList = evade_vote(trackList, other_classes, other_boxs, other_scores,
+        #                                     frame.shape[0], personForwardDict, personBoxDict,
+        #                                     personLocaDict, personIsCrossLine, curr_time_path)  # frame.shape, (h, w, c)
+        log.logger.info("*** len(following_list): %d" % (len(following_list)))
+        flag, TrackContentList, following_list = evade4new(trackList, other_classes, other_boxs, other_scores,
+                                                           frame.shape[0], personForwardDict, personBoxDict,
+                                                           personLocaDict, personIsCrossLine, curr_time_path,
+                                                           following_list)  # frame.shape, (h, w, c)
+        log.logger.info("$$$ len(following_list): %d" % (len(following_list)))
         detect_time = time.time() - detect_t1  # 检测动作结束
 
         # if flag == "WARNING":
@@ -237,7 +244,7 @@ def main(input_path, output_path):
             if flag == "NORMAL":  # 正常情况
                 savefile = os.path.join(normal_time_path, ip + "_" + curr_time_path + ".jpg")
                 status = cv2.imwrite(filename=savefile, img=result)  # cv2.imwrite()保存文件，路径不能有2个及以上冒号
-
+                # status = False
                 print("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
                 log.logger.info("时间: %s, 状态: %s, 文件: %s, 保存状态: %s" % (curr_time_path, flag, savefile, status))
 

@@ -66,10 +66,11 @@ def cleaning_box(bbox_xyxy, cls_conf, cls_ids, class_names):
 '''
 def fix_person_type(xyxy, predicted_class):
     # left, top, right, bottom = xyxy
+    # passway_area2 = image_size[0] * child_correct_line2[0], image_size[0] * child_correct_line2[1])  # 2号通道小孩的认定范围（按人物框最右侧算）
     # pred_cls = ""
     #
     # # 1.对1号通道做小孩/大人的人物框面积做过滤
-    # if isin_headFilterArea(xyxy) is True:  # 如果在人头面积过滤区域
+    # if isin_headFilterArea(xyxy, 1) is True:  # 如果在人头面积过滤区域
     #     head_area = (right - left) * (bottom - top)
     #     head_ratio = float(head_area / (image_size[0] * image_size[1]))
     #     if head_ratio < head_area_filter_ratio:  # 人头面积小于阀值，认为是小孩
@@ -83,43 +84,56 @@ def fix_person_type(xyxy, predicted_class):
 
     def fix_gate0(xyxy, predicted_class):
         left, top, right, bottom = xyxy
-        pred_cls = predicted_class
+        pred_cls = ""
 
         if isin_headFilterArea(xyxy, 0) is True:    # 在0号闸机的人头修正区域
             pwidth_ratio = (right - left) / image_size[0]
             pheight_ratio = (bottom - top) / image_size[1]
             width_over_height = pwidth_ratio / pheight_ratio    # 宽高比
             area_ratio = pwidth_ratio * pheight_ratio
+
             if width_over_height >= head_filter_woh0[0] and width_over_height <= head_filter_woh0[1]:
                 if area_ratio >= head_filter_area0[0] and area_ratio <= head_filter_area0[1]:
                     pred_cls = "child"    # 只有当宽高比和面积均满足条件时，才被修正为child
+                else:
+                    pred_cls = predicted_class
+            else:
+                pred_cls = predicted_class
         return pred_cls
 
     def fix_gate1(xyxy, predicted_class):
         left, top, right, bottom = xyxy
-        pred_cls = predicted_class
+        pred_cls = ""
 
         if isin_headFilterArea(xyxy, 1) is True:
             head_area = (right - left) * (bottom - top)
             head_ratio = float(head_area / (image_size[0] * image_size[1]))
+
             if head_ratio >= head_filter_area1[0] and head_ratio <= head_filter_area1[1]:  # 人头面积小于阀值，认为是小孩
                 pred_cls = "child"
+            else:
+                pred_cls = predicted_class
+        else:
+            pred_cls = predicted_class
         return pred_cls
 
     def fix_gate2(xyxy, predicted_class):
         left, top, right, bottom = xyxy
-        pred_cls = predicted_class
-        passway_area2 = (
-        image_size[0] * child_correct_line2[0], image_size[0] * child_correct_line2[1])  # 2号通道小孩的认定范围（按人物框最右侧算）
+        pred_cls = ""
+        passway_area2 = (image_size[0] * child_correct_line2[0], image_size[0] * child_correct_line2[1])  # 2号通道小孩的认定范围（按人物框最右侧算）
 
         if isin_headFilterArea(xyxy, 2) is True:
             head_area = (right - left) * (bottom - top)
             head_ratio = float(head_area / (image_size[0] * image_size[1]))
-            if head_ratio >= head_filter_area2[0] and head_ratio <= head_filter_area2[1]:  # 人头面积
-                pred_cls = "child"
 
+            # if head_ratio >= head_filter_area2[0] and head_ratio <= head_filter_area2[1]:  # 人头面积
+            #     pred_cls = "child"
             if right >= passway_area2[0] and right <= passway_area2[1]:    # 人头右边框线
                 pred_cls = "child"
+            else:
+                pred_cls = predicted_class
+        else:
+            pred_cls = predicted_class
         return pred_cls
 
     fix_dict = {0: fix_gate0,
