@@ -16,7 +16,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import colorsys
 from common.config import normal_save_path, evade_save_path, ip, log, image_size, rtsp_url, evade_origin_save_path, imgCacheSize, imgNearSize, evade_video_path, ftp_ip, ftp_username, ftp_password
-from common.evadeUtil import evade_vote, judgeStatus, evade4new
+from common.evadeUtil import evade_vote, judgeStatus, evade4new, calc_iou, gate_light_area_list, gate_area_list
 from common.dateUtil import formatTimestamp
 from common.dbUtil import saveManyDetails2DB, getMaxPersonID, saveFTPLog2DB
 from common.Stack import Stack
@@ -156,12 +156,18 @@ def main(input_path, output_path):
             image = Image.fromarray(frame[..., ::-1])  # bgr to rgb，转成RGB格式进行做标注
             draw = ImageDraw.Draw(image)
 
-            for track in trackList:  # 标注人，track.state=0/1，都在tracker.tracks中
-                bbox = track.to_tlbr()  # 左上右下
-                label = '{} {:.2f} {} {}'.format(track.classes, track.score, track.track_id, track.state)
+            for trackContent in TrackContentList:  # 标注人，track.state=0/1，都在tracker.tracks中
+                # bbox = trackContent.to_tlbr()  # 左上右下
+                bbox = trackContent.bbox
+                if trackContent.pass_distance == 0:
+                    # label = '{} {:.2f} {} {}'.format(track.classes, track.score, track.track_id, track.state)
+                    label = '{} {}'.format(trackContent.cls, trackContent.track_id)
+                else:
+                    # label = '{} {:.2f} {} {} {}'.format(track.classes, track.score, track.track_id, track.state, track.pass_distance)
+                    label = '{} {} {:.2f}'.format(trackContent.cls, trackContent.track_id, trackContent.pass_distance)
                 label_size = draw.textsize(label, font)
 
-                left, top, right, bottom = bbox
+                left, top, right, bottom = int(bbox.split("_")[0]), int(bbox.split("_")[1]), int(bbox.split("_")[2]), int(bbox.split("_")[3])
                 top = max(0, np.floor(top + 0.5).astype('int32'))
                 left = max(0, np.floor(left + 0.5).astype('int32'))
                 bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
@@ -178,40 +184,111 @@ def main(input_path, output_path):
                 for i in range(thickness):
                     draw.rectangle(
                         [left + i, top + i, right - i, bottom - i],
-                        outline=colors[class_names.index(track.classes)])
+                        outline=colors[class_names.index(trackContent.cls)])
                 draw.rectangle(
                     [tuple(text_origin), tuple(text_origin + label_size)],
-                    fill=colors[class_names.index(track.classes)])
+                    fill=colors[class_names.index(trackContent.cls)])
                 draw.text(text_origin, label, fill=(0, 0, 0), font=font)
 
             for (other_cls, other_box, other_score) in zip(other_classes, other_boxs,
                                                            other_scores):  # 其他的识别，只标注类别和得分值
-                label = '{} {:.2f}'.format(other_cls, other_score)
-                # print("label:", label)
-                label_size = draw.textsize(label, font)
+                if other_cls in ['redLight', 'greenLight', 'yellowLight']:    # 闸机灯和门另外标注
+                    # 逐个计算每个灯与标定的灯位置的iou，最大iou>0.45时才认为是真实的灯
+                    top, left, bottom, right = other_box
+                    curr_box = [left, top, right, bottom]    # 计算iou要求左上右下
+                    iou_result = calc_iou(bbox1=[curr_box], bbox2=gate_light_area_list)  # 行：检测到的灯区域序列；列：真实位置灯区域序列
+                    for i in range(len(iou_result)):
+                        maxiou = iou_result[i].max()  # 最大的iou
+                        if maxiou > 0.45:    # 认为是真实的灯
+                            label = '{} {:.2f}'.format(other_cls, other_score)
+                            # print("label:", label)
+                            label_size = draw.textsize(label, font)
 
-                top, left, bottom, right = other_box
-                top = max(0, np.floor(top + 0.5).astype('int32'))
-                left = max(0, np.floor(left + 0.5).astype('int32'))
-                bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
-                right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
-                print(label, (left, top), (right, bottom))
-                log.logger.info("%s, (%d, %d), (%d, %d)" % (label, left, top, right, bottom))
+                            top = max(0, np.floor(top + 0.5).astype('int32'))
+                            left = max(0, np.floor(left + 0.5).astype('int32'))
+                            bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
+                            right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
+                            print(label, (left, top), (right, bottom))
+                            log.logger.info("%s, (%d, %d), (%d, %d)" % (label, left, top, right, bottom))
 
-                if top - label_size[1] >= 0:
-                    text_origin = np.array([left, top - label_size[1]])
+                            if top - label_size[1] >= 0:
+                                text_origin = np.array([left, top - label_size[1]])
+                            else:
+                                text_origin = np.array([left, top + 1])
+
+                            # My kingdom for a good redistributable image drawing library.
+                            for i in range(thickness):
+                                draw.rectangle(
+                                    [left + i, top + i, right - i, bottom - i],
+                                    outline=colors[class_names.index(other_cls)])
+                            draw.rectangle(
+                                [tuple(text_origin), tuple(text_origin + label_size)],
+                                fill=colors[class_names.index(other_cls)])
+                            draw.text(text_origin, label, fill=(0, 0, 0), font=font)
+                # elif other_cls in ['cloudGate', 'normalGate']:    # 闸机门用中心点过滤，而不是iou
+                #     top, left, bottom, right = other_box
+                #     centerx = (left + right) / 2
+                #     centery = (top + bottom) / 2
+                #     # print(centerx, centery)
+                #     print("当前闸机：", centerx, centery)
+                #
+                #     for gate_area in gate_area_list:
+                #         gleft, gtop, gright, gbottom = gate_area
+                #
+                #         # 检测到的在标定范围内，说明是真的闸机
+                #         if (centerx >= gleft and centerx <= gright) and (centery >= gtop and centery <= gbottom):
+                #             label = '{} {:.2f}'.format(other_cls, other_score)
+                #             # print("label:", label)
+                #             label_size = draw.textsize(label, font)
+                #
+                #             top = max(0, np.floor(top + 0.5).astype('int32'))
+                #             left = max(0, np.floor(left + 0.5).astype('int32'))
+                #             bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
+                #             right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
+                #             print(label, (left, top), (right, bottom))
+                #             log.logger.info("%s, (%d, %d), (%d, %d)" % (label, left, top, right, bottom))
+                #
+                #             if top - label_size[1] >= 0:
+                #                 text_origin = np.array([left, top - label_size[1]])
+                #             else:
+                #                 text_origin = np.array([left, top + 1])
+                #
+                #             # My kingdom for a good redistributable image drawing library.
+                #             for i in range(thickness):
+                #                 draw.rectangle(
+                #                     [left + i, top + i, right - i, bottom - i],
+                #                     outline=colors[class_names.index(other_cls)])
+                #             draw.rectangle(
+                #                 [tuple(text_origin), tuple(text_origin + label_size)],
+                #                 fill=colors[class_names.index(other_cls)])
+                #             draw.text(text_origin, label, fill=(0, 0, 0), font=font)
                 else:
-                    text_origin = np.array([left, top + 1])
+                    label = '{} {:.2f}'.format(other_cls, other_score)
+                    # print("label:", label)
+                    label_size = draw.textsize(label, font)
 
-                # My kingdom for a good redistributable image drawing library.
-                for i in range(thickness):
+                    top, left, bottom, right = other_box
+                    top = max(0, np.floor(top + 0.5).astype('int32'))
+                    left = max(0, np.floor(left + 0.5).astype('int32'))
+                    bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
+                    right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
+                    print(label, (left, top), (right, bottom))
+                    log.logger.info("%s, (%d, %d), (%d, %d)" % (label, left, top, right, bottom))
+
+                    if top - label_size[1] >= 0:
+                        text_origin = np.array([left, top - label_size[1]])
+                    else:
+                        text_origin = np.array([left, top + 1])
+
+                    # My kingdom for a good redistributable image drawing library.
+                    for i in range(thickness):
+                        draw.rectangle(
+                            [left + i, top + i, right - i, bottom - i],
+                            outline=colors[class_names.index(other_cls)])
                     draw.rectangle(
-                        [left + i, top + i, right - i, bottom - i],
-                        outline=colors[class_names.index(other_cls)])
-                draw.rectangle(
-                    [tuple(text_origin), tuple(text_origin + label_size)],
-                    fill=colors[class_names.index(other_cls)])
-                draw.text(text_origin, label, fill=(0, 0, 0), font=font)
+                        [tuple(text_origin), tuple(text_origin + label_size)],
+                        fill=colors[class_names.index(other_cls)])
+                    draw.text(text_origin, label, fill=(0, 0, 0), font=font)
             del draw
 
             result = np.asarray(image)  # 这时转成np.ndarray后是rgb模式，out.write(result)保存为视频用
