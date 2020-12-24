@@ -116,15 +116,14 @@ def main(input_path, output_path):
         # 解决办法：更新后的tracker.tracks与person_boxs再做一次iou，对于每个person_boxs，只保留与其最大iou的track
 
         # 这里把人物框又转回了 左上右下
-        trackList_adult = getUsefulTrack(adult_boxs, deepsort.tracker.tracks)
-        trackList_child = getUsefulTrack(child_boxs, deepsort.tracker.tracks)
+        trackList_adult = getUsefulTrack(adult_boxs, deepsort.tracker.tracks, "adult")
+        trackList_child = getUsefulTrack(child_boxs, deepsort.tracker.tracks, "child")
 
         print("检测到：大人 %d %s, 小孩 %d %s" % (len(adult_boxs), adult_boxs, len(child_boxs), child_boxs))
         print("追踪到：大人 %d %s, 小孩 %d %s" % (len(trackList_adult), [track.to_tlbr() for track in trackList_adult],
                                           len(trackList_child), [track.to_tlbr() for track in trackList_child]))
         log.logger.info("检测到：大人 %d %s, 小孩 %d %s" % (len(adult_boxs), adult_boxs, len(child_boxs), child_boxs))
-        log.logger.info(
-            "追踪到：大人 %d %s, 小孩 %d %s" % (len(trackList_adult), [track.to_tlbr() for track in trackList_adult],
+        log.logger.info("追踪到：大人 %d %s, 小孩 %d %s" % (len(trackList_adult), [track.to_tlbr() for track in trackList_adult],
                                         len(trackList_child), [track.to_tlbr() for track in trackList_child]))
 
         trackList = trackList_adult + trackList_child

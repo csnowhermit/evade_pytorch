@@ -71,7 +71,7 @@ def main(cfg, base_path):
         input_img = os.path.join(base_path, input_img)
         read_t1 = time.time()  # 读取动作开始
         curr_time_path = formatTimestamp(read_t1, format='%Y%m%d_%H%M%S', ms=True)
-        outfile = input_img[input_img.rindex("/") + 1 : -4] + "-out.jpg"
+        outfile = input_img[input_img.rindex("/") + 1 : -4] + "-out"
         # print("outfile: ", outfile)
         frame = cv2.imread(input_img)
 
@@ -98,8 +98,8 @@ def main(cfg, base_path):
         # 原因：人走了，框还在
         # 解决办法：更新后的tracker.tracks与person_boxs再做一次iou，对于每个person_boxs，只保留与其最大iou的track
 
-        trackList_adult = getUsefulTrack(adult_boxs, deepsort.tracker.tracks)
-        trackList_child = getUsefulTrack(child_boxs, deepsort.tracker.tracks)
+        trackList_adult = getUsefulTrack(adult_boxs, deepsort.tracker.tracks, "adult")
+        trackList_child = getUsefulTrack(child_boxs, deepsort.tracker.tracks, "child")
 
         print("检测到：大人 %d %s, 小孩 %d %s" % (len(adult_boxs), adult_boxs, len(child_boxs), child_boxs))
         print("追踪到：大人 %d %s, 小孩 %d %s" % (len(trackList_adult), [track.to_tlbr() for track in trackList_adult],

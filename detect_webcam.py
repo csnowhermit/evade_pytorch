@@ -16,7 +16,7 @@ import numpy as np
 
 from PIL import Image, ImageDraw, ImageFont
 import colorsys
-from common.config import normal_save_path, evade_save_path, ip, log, image_size, rtsp_url, evade_origin_save_path, imgCacheSize, imgNearSize, evade_video_path, start_time, end_time
+from common.config import normal_save_path, evade_save_path, ip, log, image_size, rtsp_url, evade_origin_save_path, imgCacheSize, imgNearSize, evade_video_path, start_hour, end_hour
 from common.evadeUtil import evade_vote, judgeStatus, evade4new, calc_iou, gate_light_area_list, gate_area_list
 from common.dateUtil import formatTimestamp
 from common.dbUtil import saveManyDetails2DB, getMaxPersonID, saveFTPLog2DB
@@ -138,6 +138,9 @@ def capture_thread(input_webcam, frame_buffer, lock, imgCacheList, cacheLock):
 
             # 判断时间：只识别运营中的
             n_time = datetime.datetime.fromtimestamp(read_time)    # 时间戳转datetime
+            start_time = datetime.datetime.strptime(str(datetime.datetime.now().date()) + start_hour, '%Y-%m-%d%H:%M')
+            end_time = datetime.datetime.strptime(str(datetime.datetime.now().date()) + end_hour, '%Y-%m-%d%H:%M')
+
             if n_time >= start_time and n_time <= end_time:
                 if count % 2 == 0:  # 表示每2帧接入一帧
                     count = 0
@@ -227,8 +230,8 @@ def detect_thread(cfg, frame_buffer, lock, imgCacheList, cacheLock):
                 # 原因：人走了，框还在
                 # 解决办法：更新后的tracker.tracks与person_boxs再做一次iou，对于每个person_boxs，只保留与其最大iou的track
 
-                trackList_adult = getUsefulTrack(adult_boxs, deepsort.tracker.tracks)
-                trackList_child = getUsefulTrack(child_boxs, deepsort.tracker.tracks)
+                trackList_adult = getUsefulTrack(adult_boxs, deepsort.tracker.tracks, "adult")
+                trackList_child = getUsefulTrack(child_boxs, deepsort.tracker.tracks, "child")
 
                 print("检测到：大人 %d %s, 小孩 %d %s" % (len(adult_boxs), adult_boxs, len(child_boxs), child_boxs))
                 print("追踪到：大人 %d %s, 小孩 %d %s" % (len(trackList_adult), [track.to_tlbr() for track in trackList_adult],
@@ -529,9 +532,9 @@ if __name__ == '__main__':
     # input_path = "D:/logs/10.6.8.181_20201104_171711.558.mp4"
     input_path = "D:/logs/"
     # input_path = 0
-    # t1 = threading.Thread(target=capture_thread, args=(rtsp_url, frame_buffer, lock, imgCacheList, cacheLock))
-    # t1.start()
-    t1 = threading.Thread(target=capture_video, args=(input_path, frame_buffer, lock, imgCacheList, cacheLock))
+    t1 = threading.Thread(target=capture_thread, args=(rtsp_url, frame_buffer, lock, imgCacheList, cacheLock))
     t1.start()
+    # t1 = threading.Thread(target=capture_video, args=(input_path, frame_buffer, lock, imgCacheList, cacheLock))
+    # t1.start()
     t2 = threading.Thread(target=detect_thread, args=(cfg, frame_buffer, lock, imgCacheList, cacheLock))
     t2.start()

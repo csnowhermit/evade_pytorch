@@ -10,7 +10,7 @@ from tkinter import *
     北醒激光雷达
 '''
 
-ser = serial.Serial('COM3')
+ser = serial.Serial('COM9')
 ser.baudrate = 115200
 count = 0
 totalnum = 0

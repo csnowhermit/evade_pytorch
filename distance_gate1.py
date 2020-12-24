@@ -7,7 +7,7 @@ import serial
 # import sys
 # sys.path.append("D:/workspace/workspace_python/evade_pytorch/")
 from common.dbUtil import saveDistanceInfo2DB
-from common.config import ip, serial_com1
+from common.config import ip, serial_com1, log
 from common.dateUtil import formatTimestamp
 
 '''
@@ -45,15 +45,17 @@ def update():
         if count >= 10:
             count = 0
             totalnum +=1
-            if distance <= 140:
-                havePeopleNum +=1
+            if distance <= 200:
+                havePeopleNum += 1
                 ms_time = formatTimestamp(time.time(), format='%Y%m%d_%H%M%S', ms=True)
-                print("!!! 有人: %s %d" % (ms_time, distance))
+                print("当前闸机: %s !!! 有人: %s %d" % (str(this_gate), ms_time, distance))
+                log.logger.info("当前闸机: %s !!! 有人: %s %d" % (str(this_gate), ms_time, distance))
                 saveDistanceInfo2DB(ip=ip, gate_num=this_gate, distance=distance)
             else:
-                noPeopleNum +=1
-                # ms_time = formatTimestamp(time.time(), format='%Y%m%d_%H%M%S', ms=True)
-                # print("    无人: %s %d" % (ms_time, distance))
+                noPeopleNum += 1
+                ms_time = formatTimestamp(time.time(), format='%Y%m%d_%H%M%S', ms=True)
+                print("当前闸机: %s     无人: %s %d" % (str(this_gate), ms_time, distance))
+                log.logger.info("当前闸机: %s     无人: %s %d" % (str(this_gate), ms_time, distance))
     hexold = hexnew
     return distance
 

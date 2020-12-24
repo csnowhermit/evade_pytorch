@@ -99,6 +99,8 @@ def fix_person_type(xyxy, predicted_class):
                     pred_cls = predicted_class
             else:
                 pred_cls = predicted_class
+        else:
+            pred_cls = predicted_class
         return pred_cls
 
     def fix_gate1(xyxy, predicted_class):

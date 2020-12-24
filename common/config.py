@@ -53,9 +53,9 @@ child_correct_line2 = (0.76, 0.95)    # 表示2号闸机的小孩修正线（人
 
 
 # 测距配置
-serial_com0 = "COM6"
+serial_com0 = "COM8"
 serial_com1 = "COM7"
-serial_com2 = "COM8"
+serial_com2 = "COM9"
 
 # # 小孩身高过滤（单位：cm）
 # total_height = 270
@@ -138,6 +138,7 @@ ftp_log = 'D:/evade_logs/ftp_%s.log' % ip
 table_ftpLog = "ftplog_%s" % (ip.replace(".", "_"))    # ftp日志表
 
 # 运营时间
-start_time = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '05:30', '%Y-%m-%d%H:%M')
-end_time = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '23:40', '%Y-%m-%d%H:%M')
-
+# start_time = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '05:30', '%Y-%m-%d%H:%M')
+# end_time = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '23:40', '%Y-%m-%d%H:%M')
+start_hour = '05:30'
+end_hour = '23:40'
