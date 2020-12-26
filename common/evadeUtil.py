@@ -639,7 +639,7 @@ def evade4new(tracks, other_classes, other_boxs, other_scores, height, personFor
                 except KeyError as e:
                     # is_corssed = "1"    # 如果没拿到过线信息，说明该人是上一轮遗留的，移除即可
                     tmp.append(following)
-                    log.logger.error("该人已被移除，info: %s, error: %s" % (following, str(traceback.format_exc())))
+                    log.logger.error("该人已被移除: %s, details: %s" % (following, str(traceback.format_exc())))
                     # continue
 
                 if is_corssed == "1":  # 过线

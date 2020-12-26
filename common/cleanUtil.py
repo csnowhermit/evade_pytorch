@@ -32,8 +32,8 @@ def cleaning_box(bbox_xyxy, cls_conf, cls_ids, class_names):
             if is_effective(xyxy) is True:  # 只有在有效范围内，才算数
                 if score >= person_types_threahold:  # 只有大于置信度的，才能视为人头
                     left, top, right, bottom = xyxy
-                    pred_cls = fix_person_type(xyxy, predicted_class)    # 修正人物类型
-                    special_classes.append(pred_cls)
+                    # pred_cls = fix_person_type(xyxy, predicted_class)    # 修正人物类型
+                    special_classes.append(predicted_class)
                     special_boxs.append([left, top, right, bottom])  # 左上右下，经过calc_special_nms()才转为 左上宽高
                     special_scores.append(score)
         elif predicted_class in goods_types:  # 随身物品，直接算
@@ -96,9 +96,9 @@ def fix_person_type(xyxy, predicted_class):
                 if area_ratio >= head_filter_area0[0] and area_ratio <= head_filter_area0[1]:
                     pred_cls = "child"    # 只有当宽高比和面积均满足条件时，才被修正为child
                 else:
-                    pred_cls = predicted_class
+                    pred_cls = "adult"
             else:
-                pred_cls = predicted_class
+                pred_cls = "adult"
         else:
             pred_cls = predicted_class
         return pred_cls
@@ -114,7 +114,7 @@ def fix_person_type(xyxy, predicted_class):
             if head_ratio >= head_filter_area1[0] and head_ratio <= head_filter_area1[1]:  # 人头面积小于阀值，认为是小孩
                 pred_cls = "child"
             else:
-                pred_cls = predicted_class
+                pred_cls = "adult"
         else:
             pred_cls = predicted_class
         return pred_cls
@@ -133,7 +133,7 @@ def fix_person_type(xyxy, predicted_class):
             if right >= passway_area2[0] and right <= passway_area2[1]:    # 人头右边框线
                 pred_cls = "child"
             else:
-                pred_cls = predicted_class
+                pred_cls = "adult"
         else:
             pred_cls = predicted_class
         return pred_cls

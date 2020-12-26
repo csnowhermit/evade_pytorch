@@ -54,24 +54,46 @@ class DeepSort(object):
             outputs = np.stack(outputs,axis=0)
         return outputs
 
-    '''
-        做追踪器的预测及更新:
-        :param ori_img 原图
-        :param 大人：类别、框（左上宽高）、置信度
-               小孩：类别、框（左上宽高）、置信度
-    '''
-    def update(self, ori_img, adult_classes, adult_boxs, adult_scores, child_classes, child_boxs, child_scores):
+    # '''
+    #     做追踪器的预测及更新:
+    #     :param ori_img 原图
+    #     :param 大人：类别、框（左上宽高）、置信度
+    #            小孩：类别、框（左上宽高）、置信度
+    # '''
+    # def update(self, ori_img, adult_classes, adult_boxs, adult_scores, child_classes, child_boxs, child_scores):
+    #     self.height, self.width = ori_img.shape[:2]
+    #
+    #     # 每个人做成128维的向量
+    #     features_adult = self._get_features(adult_boxs, ori_img)
+    #     features_child = self._get_features(child_boxs, ori_img)
+    #
+    #     # 大人和小孩的Detection
+    #     detections_adult = [Detection(cls, bbox, confidence, feature) for cls, bbox, confidence, feature in
+    #                         zip(adult_classes, adult_boxs, adult_scores, features_adult)]
+    #     detections_child = [Detection(cls, bbox, confidence, feature) for cls, bbox, confidence, feature in
+    #                         zip(child_classes, child_boxs, child_scores, features_child)]
+    #
+    #     # # 原来有nms，现去掉，原因：yolo.detect_image()本身已经做了nms
+    #     # boxes = np.array([d.tlwh for d in detections])
+    #     # scores = np.array([d.confidence for d in detections])
+    #     # indices = preprocessing.non_max_suppression(boxes, nms_max_overlap, scores)
+    #     # detections = [detections[i] for i in indices]
+    #
+    #     # Call the tracker
+    #     # 1.卡门滤波预测阶段：通过均值和协方差，预测前一帧中的tracks在当前帧的状态
+    #     self.tracker.predict()
+    #     # 2.卡门滤波更新阶段：对每个匹配成功的track，用其对应的detection进行更新，同时处理未匹配的tracks和detection
+    #     self.tracker.update(detections_adult + detections_child)  # Detection中有区分大人小孩了，这里直接放一起追踪
+
+    def update(self, ori_img, classes, boxs, scores):
         self.height, self.width = ori_img.shape[:2]
 
         # 每个人做成128维的向量
-        features_adult = self._get_features(adult_boxs, ori_img)
-        features_child = self._get_features(child_boxs, ori_img)
+        features = self._get_features(boxs, ori_img)
 
-        # 大人和小孩的Detection
-        detections_adult = [Detection(cls, bbox, confidence, feature) for cls, bbox, confidence, feature in
-                            zip(adult_classes, adult_boxs, adult_scores, features_adult)]
-        detections_child = [Detection(cls, bbox, confidence, feature) for cls, bbox, confidence, feature in
-                            zip(child_classes, child_boxs, child_scores, features_child)]
+        # Detection
+        detections = [Detection("person", bbox, confidence, feature) for cls, bbox, confidence, feature in
+                            zip(classes, boxs, scores, features)]
 
         # # 原来有nms，现去掉，原因：yolo.detect_image()本身已经做了nms
         # boxes = np.array([d.tlwh for d in detections])
@@ -83,7 +105,7 @@ class DeepSort(object):
         # 1.卡门滤波预测阶段：通过均值和协方差，预测前一帧中的tracks在当前帧的状态
         self.tracker.predict()
         # 2.卡门滤波更新阶段：对每个匹配成功的track，用其对应的detection进行更新，同时处理未匹配的tracks和detection
-        self.tracker.update(detections_adult + detections_child)  # Detection中有区分大人小孩了，这里直接放一起追踪
+        self.tracker.update(detections)  # Detection中有区分大人小孩了，这里直接放一起追踪
 
 
     """

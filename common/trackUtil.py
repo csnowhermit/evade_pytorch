@@ -18,7 +18,7 @@ def getUsefulTrack(person_boxs, tracks, person_type):
         track_box = [[int(track.to_tlbr()[0]),
                       int(track.to_tlbr()[1]),
                       int(track.to_tlbr()[2]),
-                      int(track.to_tlbr()[3])] for track in tmp_tracks]  # 追踪器中的人
+                      int(track.to_tlbr()[3])] for track in tracks]  # 追踪器中的人
 
         if len(person_boxs_ltbr) > 0 and len(track_box) > 0:
             iou_result = calc_iou(bbox1=person_boxs_ltbr, bbox2=track_box)  # 计算iou，做无效track框的过滤
@@ -31,8 +31,8 @@ def getUsefulTrack(person_boxs, tracks, person_type):
             #     if i in which_track:
             #         trackList.append(tracks[i])
             for i in which_track:  # 以上3行逻辑等价于这个，i在which_track中表示tracks中第i个人
-                trackList.append(tmp_tracks[i])
-                print("追踪器中有效的人：%s %s" % (tmp_tracks[i].to_tlbr(), tmp_tracks[i].classes))
-                log.logger.info("追踪器中有效的人：%s %s" % (tmp_tracks[i].to_tlbr(), tmp_tracks[i].classes))
+                trackList.append(tracks[i])
+                print("追踪器中有效的人：%s %s" % (tracks[i].to_tlbr(), tracks[i].classes))
+                log.logger.info("追踪器中有效的人：%s %s" % (tracks[i].to_tlbr(), tracks[i].classes))
     return trackList
 

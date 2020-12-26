@@ -15,13 +15,13 @@ import numpy as np
 
 from PIL import Image, ImageDraw, ImageFont
 import colorsys
-from common.config import normal_save_path, evade_save_path, ip, log, image_size, rtsp_url, evade_origin_save_path, imgCacheSize, imgNearSize, evade_video_path, ftp_ip, ftp_username, ftp_password
+from common.config import normal_save_path, evade_save_path, ip, log, image_size, rtsp_url, evade_origin_save_path, imgCacheSize, imgNearSize, evade_video_path, ftp_ip, ftp_username, ftp_password, adult_types
 from common.evadeUtil import evade_vote, judgeStatus, evade4new, calc_iou, gate_light_area_list, gate_area_list
 from common.dateUtil import formatTimestamp
 from common.dbUtil import saveManyDetails2DB, getMaxPersonID, saveFTPLog2DB
 from common.Stack import Stack
 from common.trackUtil import getUsefulTrack
-from common.cleanUtil import cleaning_box
+from common.cleanUtil import cleaning_box, fix_person_type
 from common.FTPUtil import MyFTP
 import threading
 
@@ -90,9 +90,9 @@ def main(input_path, output_path):
             break
         read_time = time.time() - read_t1  # 读取动作结束
         n = 2
-        if count % n == 0:    # 每n帧跳过一帧
-            count += 1
-            continue
+        # if count % 1 == 0:    # 每n帧跳过一帧
+        #     count += 1
+        #     continue
         print("=================== (%g/%g) start a image reco %s ===================" % (count, video_Frames, formatTimestamp(time.time(), ms=True)))
         log.logger.info("=================== (%g/%g) start a image reco %s ===================" % (count, video_Frames, formatTimestamp(time.time(), ms=True)))
         count += 1
@@ -109,15 +109,34 @@ def main(input_path, output_path):
         (other_classes, other_boxs, other_scores) = cleaning_box(bbox_xyxy, cls_conf, cls_ids, class_names)
 
         # 再做追踪
-        deepsort.update(frame, adult_classes, adult_boxs, adult_scores, child_classes, child_boxs, child_scores)
+        # deepsort.update(frame, adult_classes, adult_boxs, adult_scores, child_classes, child_boxs, child_scores)
+        person_classes = adult_classes + child_classes
+        person_boxs = adult_boxs + child_boxs
+        person_scores = adult_scores + child_scores
+        deepsort.update(frame, person_classes, person_boxs, person_scores)    # 放一起追踪
 
         # 这里出现bug：误检，只检出一个人，为什么tracker.tracks中有三个人
         # 原因：人走了，框还在
         # 解决办法：更新后的tracker.tracks与person_boxs再做一次iou，对于每个person_boxs，只保留与其最大iou的track
 
         # 这里把人物框又转回了 左上右下
-        trackList_adult = getUsefulTrack(adult_boxs, deepsort.tracker.tracks, "adult")
-        trackList_child = getUsefulTrack(child_boxs, deepsort.tracker.tracks, "child")
+        # trackList_adult = getUsefulTrack(adult_boxs, deepsort.tracker.tracks, "adult")
+        # trackList_child = getUsefulTrack(child_boxs, deepsort.tracker.tracks, "child")
+        trackList = getUsefulTrack(person_boxs, deepsort.tracker.tracks, "person")
+
+        # 这时trackList中的人物类型是没有经过修正的，现修正它
+        for track in trackList:
+            curr_box = [int(track.to_tlbr()[0]),
+                        int(track.to_tlbr()[1]),
+                        int(track.to_tlbr()[2]),
+                        int(track.to_tlbr()[3])]
+            curr_pred_cls = track.classes
+            fix_cls = fix_person_type(curr_box, curr_pred_cls)
+            track.classes = fix_cls
+
+        # 修正之后：
+        trackList_adult = [track for track in trackList if track.classes == "adult"]
+        trackList_child = [track for track in trackList if track.classes == "child"]
 
         print("检测到：大人 %d %s, 小孩 %d %s" % (len(adult_boxs), adult_boxs, len(child_boxs), child_boxs))
         print("追踪到：大人 %d %s, 小孩 %d %s" % (len(trackList_adult), [track.to_tlbr() for track in trackList_adult],
@@ -126,7 +145,7 @@ def main(input_path, output_path):
         log.logger.info("追踪到：大人 %d %s, 小孩 %d %s" % (len(trackList_adult), [track.to_tlbr() for track in trackList_adult],
                                         len(trackList_child), [track.to_tlbr() for track in trackList_child]))
 
-        trackList = trackList_adult + trackList_child
+        # trackList = trackList_adult + trackList_child
 
         # 这里判定每个人的方向，所在区域，是否过线
         personForwardDict, personBoxDict, personLocaDict, personIsCrossLine = judgeStatus(trackList,
@@ -179,14 +198,15 @@ def main(input_path, output_path):
                 else:
                     text_origin = np.array([left, top + 1])
 
+                curr_cls = "adult" if trackContent.cls in adult_types else trackContent.cls
                 # My kingdom for a good redistributable image drawing library.
                 for i in range(thickness):
                     draw.rectangle(
                         [left + i, top + i, right - i, bottom - i],
-                        outline=colors[class_names.index(trackContent.cls)])
+                        outline=colors[class_names.index(curr_cls)])
                 draw.rectangle(
                     [tuple(text_origin), tuple(text_origin + label_size)],
-                    fill=colors[class_names.index(trackContent.cls)])
+                    fill=colors[class_names.index(curr_cls)])
                 draw.text(text_origin, label, fill=(0, 0, 0), font=font)
 
             for (other_cls, other_box, other_score) in zip(other_classes, other_boxs,
